@@ -113,28 +113,3 @@ export async function lireFiche(pdf, structure, options = {}) {
 
   return { extrait, remarques, usage: reponse.usage };
 }
-
-/** Texte brut du PDF, pour l'apercu a l'ecran et le controle de relecture. */
-export async function texteDuPdf(pdf) {
-  try {
-    const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
-    const chargement = pdfjs.getDocument({
-      data: new Uint8Array(pdf),
-      isEvalSupported: false,
-      useSystemFonts: true,
-    });
-    const document = await chargement.promise;
-
-    const pages = [];
-    for (let n = 1; n <= document.numPages; n++) {
-      const page = await document.getPage(n);
-      const contenu = await page.getTextContent();
-      pages.push(contenu.items.map((i) => i.str ?? '').join(' ').replace(/\s+/g, ' ').trim());
-    }
-    await chargement.destroy();
-    return pages.join('\n\n');
-  } catch (erreur) {
-    if (process.env.DEBUG) console.error('texteDuPdf:', erreur);
-    return '';
-  }
-}

@@ -1,0 +1,215 @@
+// Application web. Aucune donnee n'est gardee entre deux requetes : le
+// navigateur conserve la fiche et les photos, et les envoie au fil des etapes.
+// C'est ce qui permet le meme code en local et sur Vercel.
+//
+// Les requetes restent petites (limite de 4,5 Mo par requete sur Vercel) :
+// la fiche PDF part seule, puis les photos une par une.
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import express from 'express';
+import multer from 'multer';
+import { lireConfig, jetonWebflow, cleAnthropic, surVercel } from '../src/config.js';
+import {
+  chargerStructure,
+  lireLaFiche,
+  reserverSlug,
+  envoyerPhoto,
+  envoyerFichePdf,
+  creerAnnonce,
+} from '../src/pipeline.js';
+import { messageDePhotoIllisible } from '../src/photos.js';
+import {
+  protectionActive,
+  verifierMotDePasse,
+  creerSession,
+  enteteCookie,
+  exigerSession,
+  tropDEssais,
+  sessionValide,
+  lireCookie,
+} from '../src/auth.js';
+
+const ici = path.dirname(fileURLToPath(import.meta.url));
+
+export function creerApplication() {
+  const app = express();
+
+  // 4,5 Mo est la limite dure de Vercel ; on refuse un peu avant pour rendre
+  // un message clair plutot qu'une erreur de plateforme.
+  const LIMITE_REQUETE = 4 * 1024 * 1024;
+  const televersement = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: LIMITE_REQUETE, files: 2 },
+  });
+
+  app.disable('x-powered-by');
+  app.use(express.json({ limit: '1mb' }));
+  app.use(express.static(path.join(ici, 'public')));
+
+  // ── Connexion ───────────────────────────────────────────────────────────
+
+  app.get('/api/session', (requete, reponse) => {
+    reponse.json({
+      protege: protectionActive(),
+      authentifie: !protectionActive() || sessionValide(lireCookie(requete.headers.cookie)),
+    });
+  });
+
+  app.post('/api/connexion', async (requete, reponse) => {
+    if (!protectionActive()) return reponse.json({ ok: true });
+    if (tropDEssais()) {
+      return reponse.status(429).json({
+        erreur: "Trop d'essais infructueux. Réessayez dans un quart d'heure.",
+      });
+    }
+    // Ralentissement systematique : une tentative par seconde au mieux.
+    await new Promise((r) => setTimeout(r, 400));
+
+    if (!verifierMotDePasse(requete.body?.motDePasse)) {
+      return reponse.status(401).json({ erreur: 'Mot de passe incorrect.' });
+    }
+    reponse.setHeader('Set-Cookie', enteteCookie(creerSession()));
+    reponse.json({ ok: true });
+  });
+
+  app.post('/api/deconnexion', (requete, reponse) => {
+    reponse.setHeader('Set-Cookie', enteteCookie(''));
+    reponse.json({ ok: true });
+  });
+
+  // Tout ce qui suit exige une session valide.
+  app.use('/api', exigerSession);
+
+  // ── Structure de la collection ──────────────────────────────────────────
+
+  app.get('/api/config', async (requete, reponse) => {
+    const config = lireConfig();
+    if (!config.collectionId) return reponse.json({ configure: false });
+
+    const structure = await chargerStructure(config, jetonWebflow());
+    reponse.json({
+      configure: true,
+      site: config.siteNom,
+      collection: structure.nom,
+      lectureAuto: Boolean(cleAnthropic()),
+      fichePdfActivee: Boolean(config.champFichePdf),
+      photoLargeurMax: config.photoLargeurMax,
+      photoQualite: config.photoQualite,
+      champs: structure.champsExtraits.map((c) => ({
+        slug: c.slug,
+        libelle: c.displayName,
+        type: c.type,
+        obligatoire: Boolean(c.isRequired),
+        aide: c.helpText ?? null,
+        options: (c.validations?.options ?? []).map((o) => o.name),
+      })),
+      champsNonGeres: structure.champsNonGeres.map((c) => c.displayName),
+    });
+  });
+
+  // ── Etape 1 : lecture de la fiche ───────────────────────────────────────
+
+  app.post('/api/analyse', televersement.single('fiche'), async (requete, reponse) => {
+    const config = lireConfig();
+    const structure = await chargerStructure(config, jetonWebflow());
+    const lecture = await lireLaFiche(requete.file?.buffer ?? null, structure, config);
+    reponse.json(lecture);
+  });
+
+  // ── Etape 2 : slug definitif ────────────────────────────────────────────
+
+  app.post('/api/slug', async (requete, reponse) => {
+    const config = lireConfig();
+    const { fieldData } = requete.body ?? {};
+    if (!fieldData?.name) {
+      return reponse.status(400).json({ erreur: "Le titre de l'annonce est obligatoire." });
+    }
+    reponse.json(await reserverSlug(fieldData, config, jetonWebflow()));
+  });
+
+  // ── Etape 3 : un media par requete ──────────────────────────────────────
+
+  app.post('/api/media', televersement.single('fichier'), async (requete, reponse) => {
+    const config = lireConfig();
+    const jeton = jetonWebflow();
+    const { slug, index, type } = requete.body ?? {};
+
+    if (!requete.file) return reponse.status(400).json({ erreur: 'Aucun fichier reçu.' });
+    if (!slug) return reponse.status(400).json({ erreur: 'Slug manquant.' });
+
+    if (type === 'pdf') {
+      if (!config.champFichePdf) {
+        return reponse.status(400).json({ erreur: "Aucun champ « Fichier » n'est configuré." });
+      }
+      return reponse.json(
+        await envoyerFichePdf({ pdf: requete.file.buffer, slug, config, jeton })
+      );
+    }
+
+    try {
+      const media = await envoyerPhoto({
+        contenu: requete.file.buffer,
+        slug,
+        index: Number(index) || 0,
+        config,
+        jeton,
+      });
+      reponse.json(media);
+    } catch (erreur) {
+      if (erreur.name === 'ErreurWebflow') throw erreur;
+      // Fichier illisible : on le signale sans faire echouer tout l'envoi.
+      reponse
+        .status(422)
+        .json({ erreur: messageDePhotoIllisible(requete.file.originalname, erreur) });
+    }
+  });
+
+  // ── Etape 4 : creation de l'annonce ─────────────────────────────────────
+
+  app.post('/api/creer', async (requete, reponse) => {
+    const config = lireConfig();
+    const jeton = jetonWebflow();
+    const structure = await chargerStructure(config, jeton);
+    const { fieldData, slug, medias, mediaPdf, publier } = requete.body ?? {};
+
+    if (!fieldData?.name || !slug) {
+      return reponse.status(400).json({ erreur: 'Titre ou slug manquant.' });
+    }
+
+    const resultat = await creerAnnonce({
+      structure,
+      fieldData,
+      slug,
+      medias: Array.isArray(medias) ? medias : [],
+      mediaPdf: mediaPdf ?? null,
+      config,
+      jeton,
+      publier: Boolean(publier),
+    });
+
+    reponse.json({
+      ok: true,
+      publie: Boolean(publier),
+      nom: resultat.item?.fieldData?.name ?? fieldData.name,
+      slug: resultat.slug,
+      itemId: resultat.item?.id,
+      photos: Array.isArray(medias) ? medias.length : 0,
+    });
+  });
+
+  app.use((erreur, requete, reponse, suite) => {
+    console.error(erreur);
+    if (erreur?.code === 'LIMIT_FILE_SIZE') {
+      return reponse.status(413).json({
+        erreur: surVercel
+          ? 'Fichier trop lourd : Vercel limite chaque envoi à 4,5 Mo. Allégez la fiche PDF.'
+          : 'Fichier trop lourd (plus de 4 Mo).',
+      });
+    }
+    reponse.status(erreur?.statut && erreur.statut < 500 ? 400 : 500).json({
+      erreur: erreur?.message ?? 'Erreur inattendue.',
+    });
+  });
+
+  return app;
+}

@@ -3,6 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
     <title>Publication d'un bien — Webflow</title>
     <style>
       :root {
@@ -32,7 +33,11 @@
         background: var(--blanc);
         border-bottom: 1px solid var(--trait);
         padding: 18px 28px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
       }
+      header div { flex: 1; }
       header h1 { margin: 0; font-size: 18px; letter-spacing: -0.01em; }
       header p { margin: 4px 0 0; color: var(--encre-doux); font-size: 13.5px; }
       main { max-width: 900px; margin: 0 auto; padding: 28px 20px 80px; }
@@ -43,7 +48,7 @@
         padding: 22px 24px;
         margin-bottom: 20px;
       }
-      section[hidden] { display: none; }
+      [hidden] { display: none !important; }
       h2 {
         font-size: 13px;
         text-transform: uppercase;
@@ -52,6 +57,7 @@
         margin: 0 0 16px;
         font-weight: 600;
       }
+      h2 .libre { text-transform: none; font-weight: 400; letter-spacing: 0; }
       .depot {
         border: 2px dashed var(--trait);
         border-radius: var(--rayon);
@@ -79,11 +85,21 @@
       .principal:hover:not(:disabled) { background: var(--accent-fonce); }
       .secondaire { background: var(--blanc); border-color: var(--trait); color: var(--encre); }
       .secondaire:hover:not(:disabled) { border-color: var(--encre-doux); }
+      .lien {
+        background: none;
+        border: 0;
+        padding: 0;
+        color: var(--encre-doux);
+        font-weight: 400;
+        font-size: 13px;
+        text-decoration: underline;
+      }
       .champ { margin-bottom: 18px; }
       .champ label { display: block; font-weight: 600; font-size: 13.5px; margin-bottom: 5px; }
-      .champ .aide { font-weight: 400; color: var(--encre-doux); font-size: 12.5px; margin-left: 6px; }
+      .champ .aide { font-weight: 400; color: var(--encre-doux); font-size: 12.5px; }
+      .champ label .aide { margin-left: 6px; }
       .champ .requis { color: var(--erreur); margin-left: 4px; }
-      .champ input[type="text"], .champ input[type="number"], .champ input[type="date"],
+      .champ input[type="text"], .champ input[type="number"], .champ input[type="password"],
       .champ textarea, .champ select {
         width: 100%;
         padding: 9px 11px;
@@ -112,6 +128,7 @@
         gap: 12px;
       }
       .photo {
+        position: relative;
         border: 1px solid var(--trait);
         border-radius: 8px;
         overflow: hidden;
@@ -119,7 +136,6 @@
         cursor: grab;
       }
       .photo.glisse { opacity: 0.4; }
-      .photo { position: relative; }
       .photo img { width: 100%; height: 108px; object-fit: cover; display: block; }
       .photo .meta {
         padding: 6px 8px;
@@ -168,6 +184,14 @@
         margin-top: 4px;
       }
       .barre-actions .note { color: var(--encre-doux); font-size: 13px; flex: 1 1 200px; }
+      .jauge {
+        height: 6px;
+        background: var(--trait);
+        border-radius: 3px;
+        overflow: hidden;
+        margin: 14px 0 8px;
+      }
+      .jauge div { height: 100%; background: var(--accent); width: 0; transition: width 0.2s; }
       .journal {
         font: 12.5px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
         color: var(--encre-doux);
@@ -187,59 +211,80 @@
       }
       @keyframes tourne { to { transform: rotate(360deg); } }
       a { color: var(--accent); }
+      #connexion { max-width: 420px; margin: 12vh auto 0; }
     </style>
   </head>
   <body>
-    <header>
-      <h1>Publication d'un bien</h1>
-      <p id="contexte">Chargement de la configuration…</p>
+    <header id="entete" hidden>
+      <div>
+        <h1>Publication d'un bien</h1>
+        <p id="contexte">Chargement…</p>
+      </div>
+      <button class="lien" id="boutonDeconnexion" hidden>Se déconnecter</button>
     </header>
 
     <main>
-      <div id="alerteGlobale"></div>
-
-      <section id="etapeDepot">
-        <h2>1 · Fiche et photos</h2>
-        <div class="depot" id="zoneDepot">
-          <strong>Glissez ici la fiche PDF et les photos</strong>
-          <span>ou cliquez pour les choisir — un seul PDF, autant de photos que nécessaire</span>
-        </div>
-        <input type="file" id="selecteur" multiple accept=".pdf,image/*" hidden />
-        <div class="liste-fichiers" id="listeFichiers"></div>
-        <div class="barre-actions">
-          <span class="note" id="noteDepot"></span>
-          <button class="principal" id="boutonAnalyser" disabled>Lire la fiche</button>
-        </div>
+      <section id="connexion" hidden>
+        <h2>Accès réservé</h2>
+        <form id="formConnexion">
+          <div class="champ">
+            <label for="motDePasse">Mot de passe</label>
+            <input type="password" id="motDePasse" autocomplete="current-password" autofocus />
+          </div>
+          <div id="erreurConnexion"></div>
+          <button class="principal" type="submit" style="width: 100%">Entrer</button>
+        </form>
       </section>
 
-      <section id="etapeRelecture" hidden>
-        <h2>2 · Relecture</h2>
-        <div id="avis"></div>
-        <form id="formulaire"></form>
-      </section>
+      <div id="application" hidden>
+        <div id="alerteGlobale"></div>
 
-      <section id="etapePhotos" hidden>
-        <h2>3 · Photos <span style="text-transform: none; font-weight: 400">(la première est la photo principale — glissez pour réordonner)</span></h2>
-        <div class="grille-photos" id="grillePhotos"></div>
-      </section>
+        <section id="etapeDepot">
+          <h2>1 · Fiche et photos</h2>
+          <div class="depot" id="zoneDepot">
+            <strong>Glissez ici la fiche PDF et les photos</strong>
+            <span>ou cliquez pour les choisir — un seul PDF, autant de photos que nécessaire</span>
+          </div>
+          <input type="file" id="selecteur" multiple accept=".pdf,image/*" hidden />
+          <div class="liste-fichiers" id="listeFichiers"></div>
+          <div class="barre-actions">
+            <span class="note" id="noteDepot"></span>
+            <button class="principal" id="boutonAnalyser" disabled>Lire la fiche</button>
+          </div>
+        </section>
 
-      <section id="etapeEnvoi" hidden>
-        <h2>4 · Envoi vers Webflow</h2>
-        <div class="barre-actions" style="border-top: 0; padding-top: 0">
-          <span class="note">
-            Le brouillon apparaît dans le CMS Webflow sans être visible sur le site :
-            c'est le mode recommandé pour une dernière vérification.
-          </span>
-          <button class="secondaire" id="boutonPublier">Publier en ligne</button>
-          <button class="principal" id="boutonBrouillon">Créer en brouillon</button>
-        </div>
-        <div id="resultat"></div>
-      </section>
+        <section id="etapeRelecture" hidden>
+          <h2>2 · Relecture</h2>
+          <div id="avis"></div>
+          <form id="formulaire"></form>
+        </section>
+
+        <section id="etapePhotos" hidden>
+          <h2>
+            3 · Photos
+            <span class="libre">(la première est la photo principale — glissez pour réordonner)</span>
+          </h2>
+          <div class="grille-photos" id="grillePhotos"></div>
+        </section>
+
+        <section id="etapeEnvoi" hidden>
+          <h2>4 · Envoi vers Webflow</h2>
+          <div class="barre-actions" style="border-top: 0; padding-top: 0">
+            <span class="note">
+              Le brouillon apparaît dans le CMS Webflow sans être visible sur le site :
+              c'est le mode recommandé pour une dernière vérification.
+            </span>
+            <button class="secondaire" id="boutonPublier">Publier en ligne</button>
+            <button class="principal" id="boutonBrouillon">Créer en brouillon</button>
+          </div>
+          <div id="resultat"></div>
+        </section>
+      </div>
     </main>
 
     <script type="module">
       const $ = (id) => document.getElementById(id);
-      const etat = { config: null, fichiers: [], depot: null, photos: [] };
+      const etat = { config: null, fichiers: [], pdf: null, photos: [], champs: [] };
 
       const echapper = (t) =>
         String(t ?? '').replace(/[&<>"']/g, (c) =>
@@ -253,39 +298,103 @@
         conteneur.innerHTML += `<div class="avis ${type}"><strong>${echapper(titre)}</strong>${liste}</div>`;
       }
 
+      class SessionExpiree extends Error {}
+
       async function appel(url, options) {
-        const reponse = await fetch(url, options);
+        const reponse = await fetch(url, { credentials: 'same-origin', ...options });
         const donnees = await reponse.json().catch(() => ({}));
-        if (!reponse.ok) throw new Error(donnees.erreur || `Erreur ${reponse.status}`);
+        if (reponse.status === 401 && donnees.connexionRequise) {
+          montrerConnexion();
+          throw new SessionExpiree('Session expirée.');
+        }
+        if (!reponse.ok) {
+          const erreur = new Error(donnees.erreur || `Erreur ${reponse.status}`);
+          erreur.statut = reponse.status;
+          throw erreur;
+        }
         return donnees;
       }
 
-      // ── Configuration ─────────────────────────────────────────────────
-      try {
+      // ── Connexion ─────────────────────────────────────────────────────
+      function montrerConnexion() {
+        $('connexion').hidden = false;
+        $('application').hidden = true;
+        $('entete').hidden = true;
+        $('motDePasse').focus();
+      }
+
+      $('formConnexion').addEventListener('submit', async (ev) => {
+        ev.preventDefault();
+        $('erreurConnexion').innerHTML = '';
+        try {
+          await appel('/api/connexion', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ motDePasse: $('motDePasse').value }),
+          });
+          $('motDePasse').value = '';
+          $('connexion').hidden = true;
+          await demarrer();
+        } catch (erreur) {
+          avis($('erreurConnexion'), 'erreur', erreur.message);
+        }
+      });
+
+      $('boutonDeconnexion').addEventListener('click', async () => {
+        await fetch('/api/deconnexion', { method: 'POST', credentials: 'same-origin' });
+        location.reload();
+      });
+
+      // ── Démarrage ─────────────────────────────────────────────────────
+      async function demarrer() {
+        const session = await fetch('/api/session', { credentials: 'same-origin' })
+          .then((r) => r.json())
+          .catch(() => ({ protege: true, authentifie: false }));
+
+        if (!session.authentifie) return montrerConnexion();
+
+        $('entete').hidden = false;
+        $('application').hidden = false;
+        $('alerteGlobale').innerHTML = '';
+        $('boutonDeconnexion').hidden = !session.protege;
+        if (!session.protege) {
+          avis($('alerteGlobale'), 'alerte', 'Site non protégé', [
+            "MOT_DE_PASSE n'est pas défini : n'importe qui connaissant l'adresse peut publier.",
+          ]);
+        }
+
         etat.config = await appel('/api/config');
         if (!etat.config.configure) {
           $('contexte').textContent = 'Aucune collection configurée.';
           avis($('alerteGlobale'), 'erreur', 'Configuration manquante', [
-            'Lancez « npm run setup » dans le dossier du projet pour choisir le site et la collection.',
+            'Renseignez WEBFLOW_SITE_ID et WEBFLOW_COLLECTION_ID, ou lancez « npm run setup » en local.',
           ]);
           $('etapeDepot').hidden = true;
-        } else {
-          $('contexte').textContent =
-            `Site « ${etat.config.site} » · collection « ${etat.config.collection} »`;
-          if (!etat.config.lectureAuto) {
-            avis($('alerteGlobale'), 'alerte', 'Lecture automatique désactivée', [
-              'ANTHROPIC_API_KEY est absente du fichier .env : les champs devront être saisis à la main.',
-            ]);
-          }
-          if (etat.config.champsNonGeres?.length) {
-            avis($('alerteGlobale'), 'alerte', 'Champs à renseigner directement dans Webflow',
-              etat.config.champsNonGeres);
-          }
+          return;
         }
+
+        etat.champs = etat.config.champs;
+        $('contexte').textContent =
+          `Site « ${etat.config.site} » · collection « ${etat.config.collection} »`;
+        if (!etat.config.lectureAuto) {
+          avis($('alerteGlobale'), 'alerte', 'Lecture automatique désactivée', [
+            'ANTHROPIC_API_KEY est absente : les champs devront être saisis à la main.',
+          ]);
+        }
+        if (etat.config.champsNonGeres?.length) {
+          avis($('alerteGlobale'), 'alerte', 'Champs à renseigner directement dans Webflow',
+            etat.config.champsNonGeres);
+        }
+      }
+
+      try {
+        await demarrer();
       } catch (erreur) {
-        $('contexte').textContent = 'Erreur de configuration.';
-        avis($('alerteGlobale'), 'erreur', erreur.message);
-        $('etapeDepot').hidden = true;
+        if (!(erreur instanceof SessionExpiree)) {
+          $('entete').hidden = false;
+          $('contexte').textContent = 'Erreur.';
+          avis($('alerteGlobale'), 'erreur', erreur.message);
+        }
       }
 
       // ── Étape 1 : dépôt ───────────────────────────────────────────────
@@ -318,10 +427,13 @@
         afficherFichiers();
       }
 
+      const estPdf = (f) => f.name.toLowerCase().endsWith('.pdf');
+      const estImage = (f) => f.type.startsWith('image/');
+
       function afficherFichiers() {
-        const pdfs = etat.fichiers.filter((f) => f.name.toLowerCase().endsWith('.pdf'));
-        const images = etat.fichiers.filter((f) => f.type.startsWith('image/'));
-        const autres = etat.fichiers.filter((f) => !pdfs.includes(f) && !images.includes(f));
+        const pdfs = etat.fichiers.filter(estPdf);
+        const images = etat.fichiers.filter(estImage);
+        const autres = etat.fichiers.filter((f) => !estPdf(f) && !estImage(f));
 
         $('listeFichiers').innerHTML = etat.fichiers.length
           ? `<b>${pdfs.length}</b> fiche PDF · <b>${images.length}</b> photo(s)`
@@ -329,52 +441,109 @@
             + `<br />${etat.fichiers.map((f) => echapper(f.name)).join(' · ')}`
           : '';
 
-        $('noteDepot').textContent =
-          pdfs.length > 1 ? 'Plusieurs PDF déposés : n’en gardez qu’un seul.' : '';
-        $('boutonAnalyser').disabled = etat.fichiers.length === 0 || pdfs.length > 1;
+        let note = '';
+        if (pdfs.length > 1) note = "Plusieurs PDF déposés : n'en gardez qu'un seul.";
+        else if (pdfs[0] && pdfs[0].size > 4 * 1024 * 1024) {
+          note = `La fiche fait ${(pdfs[0].size / 1024 / 1024).toFixed(1)} Mo : la limite d'envoi est de 4 Mo.`;
+        }
+        $('noteDepot').textContent = note;
+        $('boutonAnalyser').disabled = etat.fichiers.length === 0 || Boolean(note);
       }
 
+      // ── Préparation des photos dans le navigateur ─────────────────────
+      // Les photos sont réduites ici : une requête ne peut pas dépasser
+      // 4,5 Mo sur Vercel, et cela évite d'envoyer 8 Mo par photo.
+      // Le passage par un canvas supprime au passage les données EXIF.
+      async function reduire(fichier, largeurMax, qualite) {
+        const image = await createImageBitmap(fichier, { imageOrientation: 'from-image' });
+        const echelle = Math.min(1, largeurMax / image.width);
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(image.width * echelle);
+        canvas.height = Math.round(image.height * echelle);
+        canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+        image.close();
+        return new Promise((resoudre, rejeter) =>
+          canvas.toBlob(
+            (blob) => (blob ? resoudre(blob) : rejeter(new Error('conversion impossible'))),
+            'image/jpeg',
+            qualite / 100
+          )
+        );
+      }
+
+      async function preparerPhotos() {
+        const images = etat.fichiers.filter(estImage);
+        const photos = [];
+        const soucis = [];
+        for (const fichier of images) {
+          try {
+            const grande = await reduire(fichier, etat.config.photoLargeurMax || 2400, etat.config.photoQualite || 82);
+            const vignette = await reduire(fichier, 400, 70);
+            photos.push({
+              nom: fichier.name,
+              blob: grande,
+              poids: grande.size,
+              apercu: URL.createObjectURL(vignette),
+            });
+          } catch {
+            soucis.push(`Photo « ${fichier.name} » illisible : si elle vient d'un iPhone, exportez-la en JPEG.`);
+          }
+        }
+        return { photos, soucis };
+      }
+
+      // ── Lecture de la fiche ───────────────────────────────────────────
       $('boutonAnalyser').addEventListener('click', async () => {
         const bouton = $('boutonAnalyser');
         bouton.disabled = true;
         $('noteDepot').innerHTML =
           '<span class="chargement"><span class="rond"></span>Lecture de la fiche et préparation des photos…</span>';
         try {
+          etat.pdf = etat.fichiers.find(estPdf) ?? null;
+
           const formulaire = new FormData();
-          etat.fichiers.forEach((f) => formulaire.append('fichiers', f, f.name));
-          const donnees = await appel('/api/analyse', { method: 'POST', body: formulaire });
-          etat.depot = donnees;
-          etat.photos = donnees.photos.map((p) => p.index);
-          afficherRelecture(donnees);
+          if (etat.pdf) formulaire.append('fiche', etat.pdf, etat.pdf.name);
+          const lecture = await appel('/api/analyse', { method: 'POST', body: formulaire });
+
+          const { photos, soucis } = await preparerPhotos();
+          etat.photos = photos;
+
+          afficherRelecture(lecture, soucis);
           $('noteDepot').textContent = '';
           $('etapeRelecture').scrollIntoView({ behavior: 'smooth', block: 'start' });
         } catch (erreur) {
           $('noteDepot').textContent = '';
-          avis($('alerteGlobale'), 'erreur', 'La lecture a échoué', [erreur.message]);
+          if (!(erreur instanceof SessionExpiree)) {
+            avis($('alerteGlobale'), 'erreur', 'La lecture a échoué', [erreur.message]);
+          }
         } finally {
           bouton.disabled = false;
         }
       });
 
       // ── Étape 2 : relecture ───────────────────────────────────────────
-      function afficherRelecture(donnees) {
+      function afficherRelecture(lecture, soucisPhotos) {
         const conteneurAvis = $('avis');
         conteneurAvis.innerHTML = '';
-        if (donnees.remarques?.length) {
-          avis(conteneurAvis, 'alerte', 'Points à vérifier avant publication', donnees.remarques);
+        if (lecture.remarques?.length) {
+          avis(conteneurAvis, 'alerte', 'Points à vérifier avant publication', lecture.remarques);
         }
-        if (donnees.avertissements?.length) {
-          avis(conteneurAvis, 'alerte', 'Avertissements techniques', donnees.avertissements);
+        const techniques = [...(lecture.avertissements ?? []), ...soucisPhotos];
+        if (techniques.length) {
+          avis(conteneurAvis, 'alerte', 'Avertissements techniques', techniques);
         }
 
         const formulaire = $('formulaire');
         formulaire.innerHTML = '';
-        for (const champ of etat.config.champs) {
-          formulaire.insertAdjacentHTML('beforeend', gabaritChamp(champ, donnees.fieldData[champ.slug]));
+        for (const champ of etat.champs) {
+          formulaire.insertAdjacentHTML('beforeend', gabaritChamp(champ, lecture.fieldData[champ.slug]));
         }
         $('etapeRelecture').hidden = false;
-        $('etapePhotos').hidden = donnees.photos.length === 0;
+        $('etapePhotos').hidden = etat.photos.length === 0;
         $('etapeEnvoi').hidden = false;
+        $('resultat').innerHTML = '';
+        $('boutonBrouillon').disabled = false;
+        $('boutonPublier').disabled = false;
         afficherPhotos();
       }
 
@@ -386,20 +555,24 @@
           + (champ.aide ? `<span class="aide">${echapper(champ.aide)}</span>` : '')
           + '</label>';
 
+        const attributs = `id="c-${champ.slug}" data-slug="${champ.slug}" data-type="${champ.type}"`;
         let controle;
         if (champ.type === 'RichText') {
-          controle = `<div class="aide" style="margin:-2px 0 6px">Mise en forme HTML simple : &lt;p&gt;, &lt;strong&gt;, &lt;ul&gt;&lt;li&gt;</div><textarea id="c-${champ.slug}" data-slug="${champ.slug}" data-type="${champ.type}">${echapper(valeur ?? '')}</textarea>`;
+          controle =
+            '<div class="aide" style="margin: -2px 0 6px">Mise en forme HTML simple : '
+            + '&lt;p&gt;, &lt;strong&gt;, &lt;ul&gt;&lt;li&gt;</div>'
+            + `<textarea ${attributs}>${echapper(valeur ?? '')}</textarea>`;
         } else if (champ.type === 'Number') {
-          controle = `<input type="number" step="any" id="c-${champ.slug}" data-slug="${champ.slug}" data-type="${champ.type}" value="${echapper(valeur ?? '')}" />`;
+          controle = `<input type="number" step="any" ${attributs} value="${echapper(valeur ?? '')}" />`;
         } else if (champ.type === 'Switch') {
-          controle = `<div class="interrupteur"><input type="checkbox" id="c-${champ.slug}" data-slug="${champ.slug}" data-type="${champ.type}" ${valeur ? 'checked' : ''} /><span>Oui</span></div>`;
+          controle = `<div class="interrupteur"><input type="checkbox" ${attributs} ${valeur ? 'checked' : ''} /><span>Oui</span></div>`;
         } else if (champ.type === 'Option') {
           const choix = ['', ...champ.options]
             .map((o) => `<option value="${echapper(o)}" ${o === valeur ? 'selected' : ''}>${echapper(o || '— non renseigné —')}</option>`)
             .join('');
-          controle = `<select id="c-${champ.slug}" data-slug="${champ.slug}" data-type="${champ.type}">${choix}</select>`;
+          controle = `<select ${attributs}>${choix}</select>`;
         } else {
-          controle = `<input type="text" id="c-${champ.slug}" data-slug="${champ.slug}" data-type="${champ.type}" value="${echapper(valeur ?? '')}" />`;
+          controle = `<input type="text" ${attributs} value="${echapper(valeur ?? '')}" />`;
         }
         return `<div class="champ ${vide ? 'vide' : ''}">${libelle}${controle}</div>`;
       }
@@ -420,11 +593,9 @@
 
       // ── Étape 3 : photos ──────────────────────────────────────────────
       function afficherPhotos() {
-        const grille = $('grillePhotos');
-        grille.innerHTML = etat.photos
-          .map((index, rang) => {
-            const photo = etat.depot.photos.find((p) => p.index === index);
-            return `
+        $('grillePhotos').innerHTML = etat.photos
+          .map(
+            (photo, rang) => `
               <div class="photo ${rang === 0 ? 'premiere' : ''}" draggable="true" data-rang="${rang}">
                 <img src="${photo.apercu}" alt="${echapper(photo.nom)}" />
                 ${rang === 0 ? '<span class="etiquette">principale</span>' : ''}
@@ -438,8 +609,8 @@
                   <button type="button" data-action="droite" data-rang="${rang}" title="Avancer">&rarr;</button>
                   <button type="button" data-action="retirer" data-rang="${rang}" title="Retirer">&times;</button>
                 </div>
-              </div>`;
-          })
+              </div>`
+          )
           .join('');
       }
 
@@ -483,59 +654,105 @@
       });
 
       // ── Étape 4 : envoi ───────────────────────────────────────────────
+      function progression(texte, fait, total) {
+        const pourcent = total ? Math.round((fait / total) * 100) : 0;
+        $('resultat').innerHTML =
+          `<div class="jauge"><div style="width:${pourcent}%"></div></div>`
+          + `<div class="chargement"><span class="rond"></span>${echapper(texte)}</div>`;
+      }
+
       async function envoyer(publier) {
-        const manquants = etat.config.champs.filter((c) => {
-          if (!c.obligatoire) return false;
-          const controle = document.getElementById('c-' + c.slug);
-          return !controle || controle.value === '';
-        });
+        const fieldData = releverFormulaire();
+
+        const manquants = etat.champs.filter((c) => c.obligatoire && fieldData[c.slug] === undefined);
         if (manquants.length) {
           const suite = confirm(
             'Champs obligatoires non renseignés :\n· '
               + manquants.map((c) => c.libelle).join('\n· ')
-              + '\n\nWebflow refusera peut-être l’enregistrement. Continuer ?'
+              + "\n\nWebflow refusera peut-être l'enregistrement. Continuer ?"
           );
           if (!suite) return;
         }
-        if (publier && !confirm("Publier cette annonce en ligne, visible immédiatement sur le site ?")) {
+        if (publier && !confirm('Publier cette annonce en ligne, visible immédiatement sur le site ?')) {
           return;
         }
 
         $('boutonBrouillon').disabled = true;
         $('boutonPublier').disabled = true;
-        $('resultat').innerHTML =
-          '<div class="journal"><span class="chargement"><span class="rond"></span>Envoi des photos et création de l’annonce…</span></div>';
+
+        const total = etat.photos.length + (etat.pdf && etat.config.fichePdfActivee ? 1 : 0) + 1;
+        let fait = 0;
+        const journal = [];
+        const soucis = [];
 
         try {
-          const donnees = await appel('/api/envoyer', {
+          progression("Préparation de l'adresse de l'annonce…", fait, total);
+          const { slug, renomme } = await appel('/api/slug', {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({
-              identifiant: etat.depot.identifiant,
-              fieldData: releverFormulaire(),
-              ordrePhotos: etat.photos,
-              publier,
-            }),
+            body: JSON.stringify({ fieldData }),
           });
+          if (renomme) journal.push(`Un bien porte déjà ce slug : l'annonce sera créée sous « ${slug} ».`);
+
+          // Les photos partent une par une : chaque requête reste petite, et
+          // le nom du fichier reflète le titre corrigé et l'ordre final.
+          const medias = [];
+          for (const [i, photo] of etat.photos.entries()) {
+            progression(`Envoi de la photo ${i + 1} sur ${etat.photos.length} (${photo.nom})…`, fait, total);
+            const formulaire = new FormData();
+            formulaire.append('fichier', photo.blob, photo.nom);
+            formulaire.append('slug', slug);
+            formulaire.append('index', String(medias.length));
+            try {
+              medias.push(await appel('/api/media', { method: 'POST', body: formulaire }));
+              journal.push(`Photo ${i + 1}/${etat.photos.length} envoyée (${photo.nom}).`);
+            } catch (erreur) {
+              if (erreur instanceof SessionExpiree) throw erreur;
+              if (erreur.statut !== 422) throw erreur;
+              soucis.push(erreur.message);
+            }
+            fait += 1;
+          }
+
+          let mediaPdf = null;
+          if (etat.pdf && etat.config.fichePdfActivee) {
+            progression('Envoi de la fiche PDF…', fait, total);
+            const formulaire = new FormData();
+            formulaire.append('fichier', etat.pdf, etat.pdf.name);
+            formulaire.append('slug', slug);
+            formulaire.append('type', 'pdf');
+            mediaPdf = await appel('/api/media', { method: 'POST', body: formulaire });
+            journal.push('Fiche PDF jointe à l\'annonce.');
+            fait += 1;
+          }
+
+          progression(publier ? "Publication de l'annonce…" : "Création du brouillon…", fait, total);
+          const resultat = await appel('/api/creer', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ fieldData, slug, medias, mediaPdf, publier }),
+          });
+
           $('resultat').innerHTML = '';
+          if (soucis.length) avis($('resultat'), 'alerte', 'Photos écartées', soucis);
           avis(
             $('resultat'),
             'ok',
-            donnees.publie
-              ? `Annonce publiée : ${donnees.nom}`
-              : `Annonce créée en brouillon : ${donnees.nom}`,
+            resultat.publie ? `Annonce publiée : ${resultat.nom}` : `Annonce créée en brouillon : ${resultat.nom}`,
             [
-              `Adresse (slug) : ${donnees.slug}`,
-              `${donnees.photos} photo(s) envoyée(s) dans la bibliothèque du site`,
-              donnees.publie
+              `Adresse (slug) : ${resultat.slug}`,
+              `${resultat.photos} photo(s) envoyée(s) dans la bibliothèque du site`,
+              resultat.publie
                 ? 'Publiez le site dans Webflow si la page de liste doit être régénérée.'
                 : 'Ouvrez le CMS Webflow pour relire, puis publiez.',
             ]
           );
-          $('resultat').innerHTML += `<div class="journal">${donnees.journal.map(echapper).join('\n')}</div>`;
+          $('resultat').innerHTML += `<div class="journal">${journal.map(echapper).join('\n')}</div>`;
         } catch (erreur) {
           $('resultat').innerHTML = '';
-          avis($('resultat'), 'erreur', "L'envoi a échoué", [erreur.message]);
+          if (!(erreur instanceof SessionExpiree)) {
+            avis($('resultat'), 'erreur', "L'envoi a échoué", [erreur.message]);
+          }
           $('boutonBrouillon').disabled = false;
           $('boutonPublier').disabled = false;
         }

@@ -7,9 +7,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline/promises';
 import { stdin, stdout } from 'node:process';
-import { lireConfig, ecrireConfig, jetonWebflow, cleAnthropic } from './config.js';
+import crypto from 'node:crypto';
+import { lireConfig, ecrireConfig, jetonWebflow, cleAnthropic, configPourVercel } from './config.js';
 import { listerSites, listerCollections } from './webflow.js';
-import { chargerStructure, analyserDepot, envoyerVersWebflow } from './pipeline.js';
+import { chargerStructure, lireLaFiche, publierBien } from './pipeline.js';
 import { choisirChampImage, choisirChampGalerie } from './schema.js';
 import { estUnePhoto, trierNaturellement } from './photos.js';
 
@@ -175,7 +176,7 @@ async function commandeImport(args) {
   console.log(`  Photos : ${depot.photos.length}`);
   console.log(GRIS('\nLecture de la fiche…'));
 
-  const analyse = await analyserDepot(depot, structure, config);
+  const analyse = await lireLaFiche(depot.pdf, structure, config);
 
   console.log(GRAS('\nChamps reconnus'));
   for (const champ of structure.champsExtraits) {
@@ -218,17 +219,18 @@ async function commandeImport(args) {
     if (!/^o(ui)?$/i.test(reponse)) return console.log('Abandon.');
   }
 
-  const resultat = await envoyerVersWebflow({
-    structure,
-    fieldData: analyse.fieldData,
-    photos: analyse.photos,
+  const resultat = await publierBien({
     pdf: depot.pdf,
+    photos: depot.photos,
+    fieldData: analyse.fieldData,
+    structure,
     config,
     jeton,
     publier,
     ecrire: (m) => console.log(GRIS('  ' + m)),
   });
 
+  for (const avertissement of resultat.avertissements) console.log(JAUNE(`  ⚠ ${avertissement}`));
   console.log(
     VERT(`\nAnnonce ${publier ? 'publiée' : 'créée en brouillon'} : ${resultat.item.fieldData?.name}`)
   );
@@ -242,6 +244,48 @@ async function commandeImport(args) {
   }
 }
 
+// ── vercel ────────────────────────────────────────────────────────────────
+
+async function commandeVercel() {
+  const config = lireConfig();
+  if (!config.collectionId) {
+    throw new Error("Lancez d'abord « npm run setup » pour choisir le site et la collection.");
+  }
+
+  console.log(GRAS('\nVariables d\'environnement à créer dans Vercel'));
+  console.log(GRIS('  Project → Settings → Environment Variables (Production, Preview, Development)\n'));
+
+  const secrets = [
+    ['WEBFLOW_TOKEN', process.env.WEBFLOW_TOKEN, "jeton d'API Webflow"],
+    ['ANTHROPIC_API_KEY', process.env.ANTHROPIC_API_KEY, 'lecture automatique des fiches'],
+  ];
+  for (const [nom, valeur, role] of secrets) {
+    const etat = valeur
+      ? GRIS('(reprendre la valeur de votre fichier .env)')
+      : JAUNE('(absente de .env — à récupérer)');
+    console.log(`  ${nom.padEnd(24)} ${etat} ${GRIS('— ' + role)}`);
+  }
+
+  const motDePasse = process.env.MOT_DE_PASSE?.trim();
+  console.log(
+    `  ${'MOT_DE_PASSE'.padEnd(24)} ` +
+      (motDePasse
+        ? GRIS('(reprendre la valeur de votre fichier .env)')
+        : VERT(crypto.randomBytes(18).toString('base64url'))) +
+      GRIS(' — protège l\'accès au site')
+  );
+
+  console.log('');
+  for (const [nom, valeur] of configPourVercel(config)) {
+    console.log(`  ${nom.padEnd(24)} ${valeur}`);
+  }
+
+  console.log(
+    JAUNE('\nSans MOT_DE_PASSE, toute personne connaissant l\'adresse pourrait publier') +
+      JAUNE(' sur le site de l\'étude.\n')
+  );
+}
+
 // ── point d'entree ────────────────────────────────────────────────────────
 
 const [, , commande, ...args] = process.argv;
@@ -250,6 +294,7 @@ const commandes = {
   setup: commandeSetup,
   champs: () => commandeChamps(),
   import: () => commandeImport(args),
+  vercel: commandeVercel,
 };
 
 if (!commande || !commandes[commande]) {
@@ -260,6 +305,7 @@ ${GRAS('Publication de biens immobiliers dans Webflow')}
   npm run champs                         lister les champs de la collection
   npm run import -- ./biens/mon-dossier  publier un dossier (fiche PDF + photos)
   npm start                              interface glisser-déposer (navigateur)
+  npm run vercel                         variables d'environnement pour Vercel
 
 Options de « import » :
   --publier      publier directement en ligne (par défaut : brouillon)

@@ -1,6 +1,9 @@
-// Chargement de la configuration : .env (secrets) + config/config.json (site,
-// collection, correspondance des champs). Les deux fichiers ne sont jamais
-// versionnes (voir .gitignore).
+// Configuration : secrets dans .env (en local) ou dans les variables
+// d'environnement (sur Vercel), reglages dans config/config.json ou, la aussi,
+// dans des variables d'environnement.
+//
+// Sur Vercel le disque est en lecture seule et ephemere : config/config.json
+// n'y existe pas. Les variables d'environnement prennent alors le relais.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,6 +13,8 @@ export const racine = path.resolve(path.dirname(fileURLToPath(import.meta.url)),
 export const cheminConfig = path.join(racine, 'config', 'config.json');
 
 dotenv.config({ path: path.join(racine, '.env'), quiet: true });
+
+export const surVercel = Boolean(process.env.VERCEL);
 
 export const CONFIG_PAR_DEFAUT = {
   siteId: null,
@@ -34,10 +39,39 @@ export const CONFIG_PAR_DEFAUT = {
   modele: 'claude-opus-5',
 };
 
+// Variables d'environnement equivalentes aux reglages du fichier.
+const DEPUIS_ENV = {
+  siteId: 'WEBFLOW_SITE_ID',
+  siteNom: 'WEBFLOW_SITE_NOM',
+  collectionId: 'WEBFLOW_COLLECTION_ID',
+  collectionNom: 'WEBFLOW_COLLECTION_NOM',
+  champImagePrincipale: 'WEBFLOW_CHAMP_IMAGE',
+  champGalerie: 'WEBFLOW_CHAMP_GALERIE',
+  champFichePdf: 'WEBFLOW_CHAMP_FICHE_PDF',
+  consignes: 'CONSIGNES',
+  modele: 'MODELE',
+};
+
 export function lireConfig() {
-  if (!fs.existsSync(cheminConfig)) return { ...CONFIG_PAR_DEFAUT };
-  const brut = JSON.parse(fs.readFileSync(cheminConfig, 'utf8'));
-  return { ...CONFIG_PAR_DEFAUT, ...brut };
+  const fichier = fs.existsSync(cheminConfig)
+    ? JSON.parse(fs.readFileSync(cheminConfig, 'utf8'))
+    : {};
+
+  const environnement = {};
+  for (const [cle, variable] of Object.entries(DEPUIS_ENV)) {
+    const valeur = process.env[variable]?.trim();
+    if (valeur) environnement[cle] = valeur;
+  }
+  for (const [cle, variable] of [
+    ['photoLargeurMax', 'PHOTO_LARGEUR_MAX'],
+    ['photoQualite', 'PHOTO_QUALITE'],
+  ]) {
+    const valeur = Number(process.env[variable]);
+    if (Number.isFinite(valeur) && valeur > 0) environnement[cle] = valeur;
+  }
+
+  // L'environnement l'emporte : c'est lui qui fait foi sur Vercel.
+  return { ...CONFIG_PAR_DEFAUT, ...fichier, ...environnement };
 }
 
 export function ecrireConfig(config) {
@@ -46,11 +80,25 @@ export function ecrireConfig(config) {
   return config;
 }
 
+/** Les reglages a recopier dans les variables d'environnement Vercel. */
+export function configPourVercel(config) {
+  const lignes = [];
+  for (const [cle, variable] of Object.entries(DEPUIS_ENV)) {
+    const valeur = config[cle];
+    if (valeur !== null && valeur !== undefined && valeur !== '') {
+      lignes.push([variable, String(valeur)]);
+    }
+  }
+  return lignes;
+}
+
 export function jetonWebflow() {
   const jeton = process.env.WEBFLOW_TOKEN?.trim();
   if (!jeton) {
     throw new Error(
-      "WEBFLOW_TOKEN absent. Copiez .env.example vers .env et collez-y votre jeton d'API Webflow."
+      surVercel
+        ? "WEBFLOW_TOKEN absent des variables d'environnement Vercel (Settings → Environment Variables)."
+        : "WEBFLOW_TOKEN absent. Copiez .env.example vers .env et collez-y votre jeton d'API Webflow."
     );
   }
   return jeton;
@@ -58,4 +106,8 @@ export function jetonWebflow() {
 
 export function cleAnthropic() {
   return process.env.ANTHROPIC_API_KEY?.trim() || null;
+}
+
+export function motDePasse() {
+  return process.env.MOT_DE_PASSE?.trim() || null;
 }

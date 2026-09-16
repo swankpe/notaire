@@ -15,9 +15,12 @@ Il fait, dans l'ordre :
 L'outil ne devine jamais un montant, une surface ou une mention légale : ce qui
 n'est pas écrit sur la fiche reste vide, et il vous signale les points à vérifier.
 
+Il tourne **en local** (`npm start`) ou **en ligne sur Vercel** — même code,
+même écran. Voir « Mise en ligne sur Vercel » plus bas.
+
 ---
 
-## Installation (une seule fois)
+## Installation en local
 
 Il faut [Node.js](https://nodejs.org) version 20 ou plus.
 
@@ -26,7 +29,7 @@ npm install
 cp .env.example .env
 ```
 
-Ouvrez `.env` et renseignez deux valeurs :
+Ouvrez `.env` et renseignez :
 
 **`WEBFLOW_TOKEN`** — dans Webflow : *Site settings → Apps & integrations →
 API access → Generate API token*. Cochez les portées :
@@ -96,6 +99,64 @@ npm run champs
 
 ---
 
+## Mise en ligne sur Vercel
+
+Avantage : plus rien à installer, l'outil est à une adresse, accessible depuis
+n'importe quel poste.
+
+### 1. Protéger l'accès — à faire en premier
+
+L'outil publie sur le site de l'étude. **Sans mot de passe, toute personne
+connaissant l'adresse pourrait créer des annonces** et consommer votre quota
+d'API. La variable `MOT_DE_PASSE` n'est donc pas optionnelle en ligne.
+
+L'écran de connexion demande ce mot de passe et pose un cookie de session signé,
+valable 12 heures. Changer le mot de passe invalide les sessions ouvertes.
+
+`npm run vercel` vous en propose un, tiré au hasard.
+
+### 2. Créer le projet
+
+1. Poussez le dépôt sur GitHub (c'est déjà le cas).
+2. Sur <https://vercel.com/new>, importez le dépôt. Aucun réglage de build à
+   toucher : Vercel détecte `server.js` à la racine et le transforme en fonction.
+3. Dans *Settings → Environment Variables*, créez les variables listées par :
+
+```bash
+npm run vercel
+```
+
+Cette commande affiche les identifiants de site et de collection à recopier,
+ainsi que la liste des secrets attendus. Sur Vercel, `config/config.json`
+n'existe pas : le disque y est en lecture seule, ce sont les variables
+d'environnement qui font foi.
+
+4. Redéployez, ouvrez l'adresse, saisissez le mot de passe.
+
+### Ce que la mise en ligne change au fonctionnement
+
+Trois contraintes de Vercel ont dicté la conception ; elles sont invisibles à
+l'usage, mais expliquent la structure du code :
+
+| Contrainte Vercel | Conséquence |
+| --- | --- |
+| **4,5 Mo par requête** | Les photos sont réduites dans le navigateur puis envoyées **une par une**, avec une barre de progression. Une fiche PDF de plus de 4 Mo est refusée avec un message clair : allégez-la. |
+| **Aucune mémoire entre deux requêtes** | Rien n'est gardé côté serveur. Le navigateur conserve la fiche et les photos, et chaque étape est autonome. Fermer l'onglet en cours de route ne laisse donc rien derrière. |
+| **Disque en lecture seule** | La configuration vient des variables d'environnement, pas de `config/config.json`. |
+
+### Le coût
+
+Le plan **Hobby de Vercel est réservé à un usage personnel non commercial** —
+c'est écrit dans leurs conditions d'utilisation. Un outil interne d'étude
+notariale est un usage professionnel : il faut donc le plan **Pro, à 20 $ par
+mois**. Ce n'est pas une contrainte technique, l'outil tournerait sur Hobby,
+mais c'est le cadre posé par Vercel.
+
+Si ces 20 $/mois ne se justifient pas pour quelques annonces par mois, l'usage
+en local (`npm start`) reste gratuit et strictement équivalent.
+
+---
+
 ## Ce que l'outil remplit, et ce qu'il ne remplit pas
 
 | Type de champ Webflow | Traitement |
@@ -115,19 +176,20 @@ Il vous les rappelle en haut de l'écran.
 
 ---
 
-## Réglages (`config/config.json`)
+## Réglages
 
-Créé par `npm run setup`, modifiable à la main :
+En local : `config/config.json`, créé par `npm run setup`.
+En ligne : les variables d'environnement Vercel, qui l'emportent toujours.
 
-| Clé | Rôle |
-| --- | --- |
-| `champImagePrincipale` | slug du champ image ; `null` = détection automatique |
-| `champGalerie` | slug du champ galerie ; `null` = détection automatique |
-| `champFichePdf` | slug d'un champ *Fichier* où déposer la fiche PDF ; `null` = la fiche n'est pas envoyée |
-| `consignes` | consignes libres transmises à la lecture automatique : vocabulaire de l'étude, mentions obligatoires, conventions de rédaction |
-| `photoLargeurMax` | largeur maximale des photos (2400 px par défaut) |
-| `photoQualite` | qualité JPEG (82 par défaut) |
-| `modele` | modèle utilisé pour la lecture des fiches |
+| Clé | Variable | Rôle |
+| --- | --- | --- |
+| `champImagePrincipale` | `WEBFLOW_CHAMP_IMAGE` | slug du champ image ; vide = détection automatique |
+| `champGalerie` | `WEBFLOW_CHAMP_GALERIE` | slug du champ galerie ; vide = détection automatique |
+| `champFichePdf` | `WEBFLOW_CHAMP_FICHE_PDF` | slug d'un champ *Fichier* où déposer la fiche PDF ; vide = la fiche n'est pas envoyée |
+| `consignes` | `CONSIGNES` | consignes libres pour la lecture automatique |
+| `photoLargeurMax` | `PHOTO_LARGEUR_MAX` | largeur maximale des photos (2400 px par défaut) |
+| `photoQualite` | `PHOTO_QUALITE` | qualité JPEG (82 par défaut) |
+| `modele` | `MODELE` | modèle utilisé pour la lecture des fiches |
 
 Le champ `consignes` est le plus utile à l'usage. Exemple :
 
@@ -147,17 +209,20 @@ vers Mac ou PC → Automatique), ou faites « Dupliquer » puis exportez.
 Ce n'est pas un problème : la fiche est envoyée telle quelle et lue comme une
 image. Relisez simplement les montants avec attention.
 
+**Ma fiche PDF fait plus de 4 Mo.**
+En ligne, c'est la limite par requête de Vercel. Compressez le PDF, ou passez
+par la version locale qui n'a pas cette limite.
+
 **Un bien porte déjà ce titre.**
 L'outil détecte le doublon et crée l'annonce sous un slug voisin plutôt que
 d'écraser l'existant. Il vous le signale dans le journal d'envoi.
 
-**J'ai fermé l'onglet avant l'envoi.**
-Le dépôt est conservé une heure côté serveur, mais l'écran de relecture est
-perdu : redéposez la fiche et les photos.
-
 **Rien n'est jamais publié par accident ?**
 Non. Le mode par défaut est le brouillon, et le bouton « Publier en ligne »
 demande une confirmation explicite.
+
+**J'ai oublié le mot de passe.**
+Changez `MOT_DE_PASSE` dans les variables Vercel et redéployez.
 
 ---
 
@@ -167,21 +232,27 @@ demande une confirmation explicite.
 npm test
 ```
 
-Les tests utilisent un faux serveur Webflow et une fiche PDF d'exemple : ils ne
+42 tests : structure de collection, conversion des valeurs, préparation des
+photos, protection par mot de passe, et le parcours complet de publication.
+Ils utilisent un faux serveur Webflow et une fiche PDF d'exemple : ils ne
 touchent ni à votre site, ni à votre quota d'API.
 
 ---
 
 ## Détail technique
 
-- `src/webflow.js` — client de l'API Webflow v2 : cadence des requêtes ajustée à
-  la limite annoncée par votre offre, reprises automatiques sur 429 et 5xx,
-  envoi des médias en deux temps (Webflow puis dépôt S3).
+- `server.js` — point d'entrée unique, en local comme sur Vercel.
+- `web/app.js` — les routes : `/api/analyse` (fiche seule), `/api/slug`,
+  `/api/media` (un fichier par requête), `/api/creer`. Aucune donnée n'est
+  conservée entre deux requêtes.
+- `src/auth.js` — mot de passe et cookie de session signé.
+- `src/webflow.js` — client de l'API Webflow v2 : cadence ajustée à la limite
+  annoncée par votre offre, reprises automatiques sur 429 et 5xx, envoi des
+  médias en deux temps (Webflow puis dépôt S3).
 - `src/schema.js` — traduit votre collection en schéma JSON, puis reconvertit la
   lecture en `fieldData` Webflow (nombres, listes déroulantes, cases à cocher).
 - `src/extraction.js` — lecture de la fiche PDF.
 - `src/photos.js` — préparation des images (sharp).
-- `src/pipeline.js` — enchaînement complet.
-- `web/` — le serveur local et l'écran de relecture.
+- `src/pipeline.js` — les quatre étapes, indépendantes les unes des autres.
 
 Aucun jeton n'est versionné : `.env` et `config/config.json` sont ignorés par git.

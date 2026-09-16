@@ -2,6 +2,7 @@
 
 Outil interne d'une étude notariale : publie une annonce immobilière dans une
 collection Webflow CMS à partir d'une fiche PDF et d'un dossier de photos.
+Tourne en local (`npm start`) et en ligne sur Vercel, avec le même code.
 
 ## Repères
 
@@ -13,22 +14,41 @@ collection Webflow CMS à partir d'une fiche PDF et d'un dossier de photos.
   directe demande une confirmation explicite. Ne pas changer ce réglage.
 - Rien n'est deviné : un champ absent de la fiche reste vide et l'utilisateur
   est prévenu. Sur une annonce notariale, une valeur inventée est une faute.
+- **Aucun état serveur.** Une requête ne peut rien supposer d'une précédente.
+
+## Contraintes Vercel qui dictent la conception
+
+Ne pas les contourner sans mesurer : elles sont la raison d'être de la
+structure actuelle.
+
+| Contrainte | Conséquence dans le code |
+| --- | --- |
+| 4,5 Mo par requête | Photos réduites côté navigateur (canvas), envoyées **une par une** via `/api/media`. La fiche PDF part seule. |
+| Pas de mémoire entre requêtes | Le navigateur garde les fichiers ; chaque route est autonome. Ne jamais réintroduire un cache de session côté serveur. |
+| Disque en lecture seule | `lireConfig()` lit les variables d'environnement, qui l'emportent sur `config/config.json`. |
+| Détection du point d'entrée | `server.js` doit rester **à la racine** : c'est ainsi que Vercel capture le serveur. |
 
 ## Architecture
 
 | Fichier | Rôle |
 | --- | --- |
+| `server.js` | point d'entrée unique (local et Vercel) |
+| `web/app.js` | routes Express, protégées par `exigerSession` |
+| `src/auth.js` | mot de passe partagé, cookie HMAC dérivé du mot de passe |
 | `src/webflow.js` | API Webflow v2 : cadence, reprises, médias en deux temps (métadonnées Webflow puis dépôt S3, champ `file` en dernier) |
 | `src/schema.js` | collection Webflow → schéma JSON → `fieldData` |
 | `src/extraction.js` | lecture de la fiche PDF via l'API Claude (document base64) |
 | `src/photos.js` | sharp : redressement, redimensionnement, JPEG, EXIF supprimés |
-| `src/pipeline.js` | `analyserDepot` (rien n'est envoyé) puis `envoyerVersWebflow` |
-| `src/cli.js` | `setup`, `champs`, `import` |
-| `web/` | serveur local + écran de relecture |
+| `src/pipeline.js` | les quatre étapes, indépendantes ; `publierBien` les chaîne pour la CLI |
+| `src/cli.js` | `setup`, `champs`, `import`, `vercel` |
 
 L'outil est **piloté par le schéma** : il lit la structure réelle de la
 collection à chaque exécution et s'y adapte. Ne pas coder en dur des noms de
 champs propres à une étude.
+
+Le navigateur réduit déjà les photos, mais `src/photos.js` refait le travail :
+la garantie « aucune donnée EXIF » doit tenir côté serveur, pas dépendre du
+navigateur du poste.
 
 ## Tests
 
@@ -37,14 +57,22 @@ npm test
 ```
 
 `test/faux-webflow.js` rejoue l'API Webflow ; aucun test n'appelle le vrai
-Webflow ni l'API Claude. Toute modification de `src/webflow.js` ou de
-`src/schema.js` doit rester couverte.
+Webflow ni l'API Claude. Toute modification de `src/webflow.js`, `src/schema.js`
+ou `src/auth.js` doit rester couverte.
+
+Le parcours navigateur (connexion, canvas, envoi photo par photo) ne se vérifie
+qu'avec Playwright, pas avec `fetch` : le redimensionnement côté client n'existe
+pas hors d'un vrai navigateur.
 
 ## Pièges rencontrés
 
-- `pdfjs-dist` v6 : `destroy()` est sur la tâche de chargement, pas sur le document.
 - Dépôt S3 : les champs de signature doivent précéder le binaire, `file` en dernier.
-- Conversion des nombres : « nous consulter » ne doit jamais devenir `0`
-  (`Number('')` vaut `0` — voir `nombreDepuisTexte`).
-- Les photos sont renommées au moment de **l'envoi**, pas de l'analyse : le
-  titre a pu être corrigé et les photos réordonnées pendant la relecture.
+- Conversion des nombres : on **extrait le premier nombre**, on ne filtre pas les
+  caractères. Un filtrage collait le « 2 » de « m2 » à la valeur et
+  « 142,5 m2 » devenait 142,52. Et `Number('')` vaut `0`, donc « nous consulter »
+  deviendrait un prix de 0 — voir `nombreDepuisTexte`.
+- Les photos sont nommées au moment de **l'envoi**, pas de l'analyse : le titre
+  a pu être corrigé et les photos réordonnées pendant la relecture. D'où
+  `/api/slug`, appelé avant le premier envoi de photo.
+- Dans le faux serveur S3, `filename="…"` contient `name="` : la vérification
+  des champs multipart exige un préfixe.

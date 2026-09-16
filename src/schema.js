@@ -165,20 +165,24 @@ export function variantePourOptions(structure, fieldData) {
 }
 
 /**
- * « 285 000 EUR » -> 285000, « 4,5 % » -> 4.5, « nous consulter » -> null.
- * Un texte sans chiffre ne doit surtout pas devenir 0 : sur un prix, l'erreur
- * se verrait en ligne.
+ * « 285 000 EUR » -> 285000, « 4,5 % » -> 4.5, « 142,5 m2 » -> 142.5,
+ * « nous consulter » -> null.
+ *
+ * On extrait le premier nombre au lieu de retirer les caracteres indesirables :
+ * un simple filtrage collerait le « 2 » de « m2 » a la valeur, et une surface
+ * de 142,5 m2 deviendrait 142,52. Et un texte sans chiffre ne doit surtout pas
+ * devenir 0 : sur un prix, l'erreur se verrait en ligne.
  */
 function nombreDepuisTexte(valeur) {
-  const texte = String(valeur);
-  if (!/\d/.test(texte)) return null;
-  const nettoye = texte
-    .replace(/\u202f|\u00a0/g, ' ')
-    .replace(/(\d)[  ](?=\d{3}\b)/g, '$1') // separateurs de milliers
-    .replace(/[^\d.,-]/g, '')
-    .replace(/,/g, '.');
-  const nombre = Number(nettoye);
-  return Number.isFinite(nombre) && nettoye !== '' ? nombre : null;
+  const texte = String(valeur)
+    .replace(/[\u202f\u00a0\u2007]/g, ' ') // espaces insecables des PDF
+    .replace(/(\d) (?=\d{3}(?:\D|$))/g, '$1'); // separateurs de milliers
+
+  const trouve = texte.match(/-?\d+(?:[.,]\d+)?/);
+  if (!trouve) return null;
+
+  const nombre = Number(trouve[0].replace(',', '.'));
+  return Number.isFinite(nombre) ? nombre : null;
 }
 
 function sansAccent(texte) {

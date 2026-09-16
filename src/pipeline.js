@@ -1,4 +1,9 @@
-// Enchainement complet : fiche PDF + photos -> element du CMS Webflow.
+// Enchainement : fiche PDF + photos -> element du CMS Webflow.
+//
+// Chaque etape est independante et ne garde aucun etat entre deux appels :
+// c'est ce qui permet a l'outil de tourner aussi bien en local que sur une
+// plateforme sans etat comme Vercel, ou deux requetes successives ne tombent
+// pas forcement sur la meme instance.
 import {
   lireCollection,
   creerItem,
@@ -15,8 +20,8 @@ import {
   variantePourOptions,
   fabriquerSlug,
 } from './schema.js';
-import { lireFiche, texteDuPdf, extractionDisponible } from './extraction.js';
-import { preparerPhotos } from './photos.js';
+import { lireFiche, extractionDisponible } from './extraction.js';
+import { preparerPhoto, preparerPhotos, messageDePhotoIllisible } from './photos.js';
 
 export async function chargerStructure(config, jeton) {
   if (!config.collectionId) {
@@ -26,32 +31,26 @@ export async function chargerStructure(config, jeton) {
   return analyserCollection(collection);
 }
 
-/**
- * Etape 1 : lire la fiche et preparer les photos, sans rien envoyer a Webflow.
- * @param {{pdf: Buffer|null, photos: {nom: string, contenu: Buffer}[]}} depot
- */
-export async function analyserDepot(depot, structure, config) {
+// ── Etape 1 : lire la fiche (rien n'est envoye a Webflow) ─────────────────
+
+export async function lireLaFiche(pdf, structure, config) {
   const remarques = [];
   const avertissements = [];
   let extrait = {};
-  let usage = null;
 
-  if (depot.pdf) {
-    if (extractionDisponible()) {
-      const lecture = await lireFiche(depot.pdf, structure, {
-        consignes: config.consignes,
-        modele: config.modele,
-      });
-      extrait = lecture.extrait;
-      remarques.push(...lecture.remarques);
-      usage = lecture.usage;
-    } else {
-      avertissements.push(
-        'Lecture automatique désactivée (ANTHROPIC_API_KEY absente) : les champs sont à saisir à la main.'
-      );
-    }
-  } else {
+  if (!pdf) {
     avertissements.push('Aucune fiche PDF fournie : les champs sont à saisir à la main.');
+  } else if (!extractionDisponible()) {
+    avertissements.push(
+      'Lecture automatique désactivée (ANTHROPIC_API_KEY absente) : les champs sont à saisir à la main.'
+    );
+  } else {
+    const lecture = await lireFiche(pdf, structure, {
+      consignes: config.consignes,
+      modele: config.modele,
+    });
+    extrait = lecture.extrait;
+    remarques.push(...lecture.remarques);
   }
 
   const conversion = versFieldData(structure, extrait);
@@ -59,64 +58,78 @@ export async function analyserDepot(depot, structure, config) {
   const fieldData = conversion.fieldData;
 
   if (!fieldData.name) {
-    fieldData.name = extrait?.name || 'Nouveau bien';
-    if (depot.pdf) {
+    fieldData.name = 'Nouveau bien';
+    if (pdf) {
       avertissements.push("Le titre de l'annonce n'a pas été trouvé dans la fiche : à compléter.");
     }
   }
-  fieldData.slug = fabriquerSlug(fieldData.name);
 
-  const { photos, avertissements: soucisPhotos } = await preparerPhotos(depot.photos ?? [], {
-    slug: fieldData.slug,
+  return { fieldData, remarques, avertissements };
+}
+
+// ── Etape 2 : arreter le slug definitif ───────────────────────────────────
+
+/**
+ * Le slug est fige avant l'envoi des photos : il sert a les nommer, et le
+ * titre a pu etre corrige pendant la relecture.
+ */
+export async function reserverSlug(fieldData, config, jeton) {
+  let slug = fabriquerSlug(fieldData.slug || fieldData.name);
+  const existant = await chercherItemParSlug(config.collectionId, slug, jeton);
+  if (!existant) return { slug, renomme: false };
+
+  slug = `${slug}-${new Date().getFullYear()}`;
+  return { slug, renomme: true };
+}
+
+// ── Etape 3 : televerser un media a la fois ───────────────────────────────
+
+/**
+ * Prepare puis televerse une photo. Le nom du fichier est construit ici, a
+ * partir du slug definitif et du rang final choisi a l'ecran.
+ */
+export async function envoyerPhoto({ contenu, slug, index, config, jeton }) {
+  const photo = await preparerPhoto(contenu, {
     largeurMax: config.photoLargeurMax,
     qualite: config.photoQualite,
   });
-  avertissements.push(...soucisPhotos);
-  if (photos.length === 0) avertissements.push('Aucune photo exploitable dans le dépôt.');
-
-  return { fieldData, photos, remarques, avertissements, usage };
+  return televerserMedia({
+    siteId: config.siteId,
+    nomFichier: `${slug}-${String(index + 1).padStart(2, '0')}.jpg`,
+    contenu: photo.contenu,
+    typeMime: photo.typeMime,
+    jeton,
+  });
 }
 
+export async function envoyerFichePdf({ pdf, slug, config, jeton }) {
+  return televerserMedia({
+    siteId: config.siteId,
+    nomFichier: `${slug}.pdf`,
+    contenu: pdf,
+    typeMime: 'application/pdf',
+    jeton,
+  });
+}
+
+// ── Etape 4 : creer l'element ─────────────────────────────────────────────
+
 /**
- * Etape 2 : televerser les medias puis creer l'element.
- * @param {{structure, fieldData, photos, pdf, config, jeton, publier, ecrire}} params
+ * @param {object} params
+ * @param {{fileId: string, url: string}[]} params.medias  photos, dans l'ordre final
+ * @param {{fileId: string, url: string}|null} params.mediaPdf
  */
-export async function envoyerVersWebflow({
+export async function creerAnnonce({
   structure,
   fieldData,
-  photos = [],
-  pdf = null,
+  slug,
+  medias = [],
+  mediaPdf = null,
   config,
   jeton,
   publier = false,
-  ecrire = () => {},
 }) {
-  const donnees = { ...fieldData };
-  donnees.slug = fabriquerSlug(donnees.slug || donnees.name);
-
-  const existant = await chercherItemParSlug(config.collectionId, donnees.slug, jeton);
-  if (existant) {
-    donnees.slug = `${donnees.slug}-${new Date().getFullYear()}`;
-    ecrire(`Un bien porte déjà ce slug : l'annonce sera créée sous « ${donnees.slug} ».`);
-  }
-
-  // Photos -> bibliotheque de medias du site. Les fichiers sont nommes ici, et
-  // non a l'analyse : le titre a pu etre corrige et les photos reordonnees
-  // pendant la relecture. La bibliotheque Webflow reste ainsi lisible.
-  const medias = [];
-  for (const [i, photo] of photos.entries()) {
-    const nomFichier = `${donnees.slug}-${String(i + 1).padStart(2, '0')}.jpg`;
-    ecrire(`Envoi de la photo ${i + 1}/${photos.length} (${photo.nomOrigine ?? photo.nom})…`);
-    medias.push(
-      await televerserMedia({
-        siteId: config.siteId,
-        nomFichier,
-        contenu: photo.contenu,
-        typeMime: photo.typeMime,
-        jeton,
-      })
-    );
-  }
+  const donnees = { ...fieldData, slug };
 
   const champImage = choisirChampImage(structure, config.champImagePrincipale);
   const champGalerie = choisirChampGalerie(structure, config.champGalerie);
@@ -130,44 +143,90 @@ export async function envoyerVersWebflow({
     donnees[champGalerie.slug] = medias.map((m) => ({ fileId: m.fileId, url: m.url }));
   }
 
-  // Fiche PDF telechargeable, si un champ « Fichier » est prevu pour cela.
   const champPdf = config.champFichePdf
     ? structure.champsFichier.find((c) => c.slug === config.champFichePdf)
     : null;
-  if (champPdf && pdf) {
-    ecrire('Envoi de la fiche PDF…');
-    const media = await televerserMedia({
-      siteId: config.siteId,
-      nomFichier: `${donnees.slug}.pdf`,
-      contenu: pdf,
-      typeMime: 'application/pdf',
-      jeton,
-    });
-    donnees[champPdf.slug] = { fileId: media.fileId, url: media.url };
+  if (champPdf && mediaPdf) {
+    donnees[champPdf.slug] = { fileId: mediaPdf.fileId, url: mediaPdf.url };
   }
 
-  ecrire(publier ? "Création de l'annonce…" : "Création de l'annonce en brouillon…");
   let item;
   try {
     item = await creerItem(config.collectionId, donnees, { brouillon: !publier, jeton });
   } catch (erreur) {
     // Certaines collections attendent l'identifiant d'une option la ou d'autres
     // attendent son libelle : on retente une fois avec l'autre forme.
-    const variante = erreur instanceof ErreurWebflow && erreur.statut === 400
-      ? variantePourOptions(structure, donnees)
-      : null;
+    const variante =
+      erreur instanceof ErreurWebflow && erreur.statut === 400
+        ? variantePourOptions(structure, donnees)
+        : null;
     if (!variante) throw erreur;
-    ecrire('Nouvel essai avec les identifiants des listes déroulantes…');
     item = await creerItem(config.collectionId, variante, { brouillon: !publier, jeton });
   }
 
   let publication = null;
   if (publier) {
-    ecrire("Publication de l'annonce…");
     publication = await publierItems(config.collectionId, [item.id], jeton);
   }
 
-  return { item, publication, medias, slug: donnees.slug };
+  return { item, publication, slug };
 }
 
-export { texteDuPdf };
+// ── Enchainement complet, pour la ligne de commande ───────────────────────
+
+/**
+ * Chaine les quatre etapes d'un coup. L'interface web, elle, les appelle une
+ * par une pour intercaler la relecture et respecter la limite de taille des
+ * requetes sur Vercel.
+ */
+export async function publierBien({
+  pdf,
+  photos = [],
+  fieldData,
+  structure,
+  config,
+  jeton,
+  publier = false,
+  ecrire = () => {},
+}) {
+  const { slug, renomme } = await reserverSlug(fieldData, config, jeton);
+  if (renomme) {
+    ecrire(`Un bien porte déjà ce slug : l'annonce sera créée sous « ${slug} ».`);
+  }
+
+  const medias = [];
+  const avertissements = [];
+  for (const [i, fichier] of photos.entries()) {
+    ecrire(`Envoi de la photo ${i + 1}/${photos.length} (${fichier.nom})…`);
+    try {
+      medias.push(
+        await envoyerPhoto({ contenu: fichier.contenu, slug, index: medias.length, config, jeton })
+      );
+    } catch (erreur) {
+      avertissements.push(messageDePhotoIllisible(fichier.nom, erreur));
+    }
+  }
+
+  let mediaPdf = null;
+  if (pdf && config.champFichePdf) {
+    ecrire('Envoi de la fiche PDF…');
+    mediaPdf = await envoyerFichePdf({ pdf, slug, config, jeton });
+  }
+
+  ecrire(publier ? "Création de l'annonce…" : "Création de l'annonce en brouillon…");
+  const resultat = await creerAnnonce({
+    structure,
+    fieldData,
+    slug,
+    medias,
+    mediaPdf,
+    config,
+    jeton,
+    publier,
+  });
+
+  if (publier) ecrire("Publication de l'annonce…");
+  return { ...resultat, medias, avertissements };
+}
+
+export { preparerPhotos };
