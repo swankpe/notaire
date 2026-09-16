@@ -1,0 +1,25 @@
+{
+  "name": "notaire-webflow",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Publie une nouvelle annonce immobiliere dans Webflow CMS a partir d'une fiche PDF et d'un dossier de photos.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "setup": "node src/cli.js setup",
+    "start": "node web/server.js",
+    "champs": "node src/cli.js champs",
+    "import": "node src/cli.js import",
+    "test": "node test/executer.js && node test/web.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.126.0",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "multer": "^2.4.0",
+    "pdfjs-dist": "^6.3.289",
+    "sharp": "^0.35.4"
+  }
+}

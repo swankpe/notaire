@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Publication d'un bien — Webflow</title>
+    <style>
+      :root {
+        --encre: #1b2430;
+        --encre-doux: #5b6675;
+        --trait: #e2e6ec;
+        --fond: #f6f7f9;
+        --blanc: #fff;
+        --accent: #1f5f8b;
+        --accent-fonce: #164865;
+        --alerte: #a4640b;
+        --alerte-fond: #fdf6e7;
+        --erreur: #b4331f;
+        --erreur-fond: #fcefec;
+        --ok: #1f7a44;
+        --ok-fond: #eef8f1;
+        --rayon: 10px;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font: 15px/1.55 ui-sans-serif, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        color: var(--encre);
+        background: var(--fond);
+      }
+      header {
+        background: var(--blanc);
+        border-bottom: 1px solid var(--trait);
+        padding: 18px 28px;
+      }
+      header h1 { margin: 0; font-size: 18px; letter-spacing: -0.01em; }
+      header p { margin: 4px 0 0; color: var(--encre-doux); font-size: 13.5px; }
+      main { max-width: 900px; margin: 0 auto; padding: 28px 20px 80px; }
+      section {
+        background: var(--blanc);
+        border: 1px solid var(--trait);
+        border-radius: var(--rayon);
+        padding: 22px 24px;
+        margin-bottom: 20px;
+      }
+      section[hidden] { display: none; }
+      h2 {
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--encre-doux);
+        margin: 0 0 16px;
+        font-weight: 600;
+      }
+      .depot {
+        border: 2px dashed var(--trait);
+        border-radius: var(--rayon);
+        padding: 42px 20px;
+        text-align: center;
+        cursor: pointer;
+        transition: border-color 0.15s, background 0.15s;
+      }
+      .depot:hover, .depot.survol { border-color: var(--accent); background: #f4f9fd; }
+      .depot strong { display: block; font-size: 16px; margin-bottom: 6px; }
+      .depot span { color: var(--encre-doux); font-size: 13.5px; }
+      .liste-fichiers { margin-top: 16px; font-size: 13.5px; color: var(--encre-doux); }
+      .liste-fichiers b { color: var(--encre); font-weight: 600; }
+      button {
+        font: inherit;
+        font-weight: 600;
+        border-radius: 8px;
+        border: 1px solid transparent;
+        padding: 10px 18px;
+        cursor: pointer;
+        transition: background 0.15s, border-color 0.15s;
+      }
+      button:disabled { opacity: 0.5; cursor: not-allowed; }
+      .principal { background: var(--accent); color: #fff; }
+      .principal:hover:not(:disabled) { background: var(--accent-fonce); }
+      .secondaire { background: var(--blanc); border-color: var(--trait); color: var(--encre); }
+      .secondaire:hover:not(:disabled) { border-color: var(--encre-doux); }
+      .champ { margin-bottom: 18px; }
+      .champ label { display: block; font-weight: 600; font-size: 13.5px; margin-bottom: 5px; }
+      .champ .aide { font-weight: 400; color: var(--encre-doux); font-size: 12.5px; margin-left: 6px; }
+      .champ .requis { color: var(--erreur); margin-left: 4px; }
+      .champ input[type="text"], .champ input[type="number"], .champ input[type="date"],
+      .champ textarea, .champ select {
+        width: 100%;
+        padding: 9px 11px;
+        border: 1px solid var(--trait);
+        border-radius: 7px;
+        font: inherit;
+        background: var(--blanc);
+        color: var(--encre);
+      }
+      .champ textarea { min-height: 130px; resize: vertical; font-family: inherit; }
+      .champ input:focus, .champ textarea:focus, .champ select:focus {
+        outline: 2px solid #cfe2f1;
+        border-color: var(--accent);
+      }
+      .champ.vide input, .champ.vide textarea, .champ.vide select { background: #fffdf7; }
+      .interrupteur { display: flex; align-items: center; gap: 9px; }
+      .interrupteur input { width: 17px; height: 17px; }
+      .avis { border-radius: 8px; padding: 12px 15px; margin-bottom: 14px; font-size: 13.5px; }
+      .avis ul { margin: 6px 0 0; padding-left: 20px; }
+      .avis.alerte { background: var(--alerte-fond); color: var(--alerte); }
+      .avis.erreur { background: var(--erreur-fond); color: var(--erreur); }
+      .avis.ok { background: var(--ok-fond); color: var(--ok); }
+      .grille-photos {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 12px;
+      }
+      .photo {
+        border: 1px solid var(--trait);
+        border-radius: 8px;
+        overflow: hidden;
+        background: var(--blanc);
+        cursor: grab;
+      }
+      .photo.glisse { opacity: 0.4; }
+      .photo { position: relative; }
+      .photo img { width: 100%; height: 108px; object-fit: cover; display: block; }
+      .photo .meta {
+        padding: 6px 8px;
+        font-size: 11.5px;
+        color: var(--encre-doux);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 6px;
+      }
+      .photo .meta span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .photo .actions { display: flex; border-top: 1px solid var(--trait); }
+      .photo .actions button {
+        flex: 1;
+        border: 0;
+        border-radius: 0;
+        background: var(--blanc);
+        padding: 6px;
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--encre-doux);
+      }
+      .photo .actions button:hover { background: var(--fond); color: var(--encre); }
+      .photo.premiere { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+      .etiquette {
+        position: absolute;
+        top: 7px;
+        left: 7px;
+        background: var(--accent);
+        color: #fff;
+        font-size: 10.5px;
+        font-weight: 600;
+        padding: 2px 7px;
+        border-radius: 4px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+      }
+      .barre-actions {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+        border-top: 1px solid var(--trait);
+        padding-top: 18px;
+        margin-top: 4px;
+      }
+      .barre-actions .note { color: var(--encre-doux); font-size: 13px; flex: 1 1 200px; }
+      .journal {
+        font: 12.5px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+        color: var(--encre-doux);
+        background: var(--fond);
+        border-radius: 8px;
+        padding: 12px 14px;
+        margin-top: 12px;
+        white-space: pre-wrap;
+      }
+      .chargement { display: inline-flex; align-items: center; gap: 9px; color: var(--encre-doux); font-size: 13.5px; }
+      .rond {
+        width: 14px; height: 14px;
+        border: 2px solid var(--trait);
+        border-top-color: var(--accent);
+        border-radius: 50%;
+        animation: tourne 0.8s linear infinite;
+      }
+      @keyframes tourne { to { transform: rotate(360deg); } }
+      a { color: var(--accent); }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Publication d'un bien</h1>
+      <p id="contexte">Chargement de la configuration…</p>
+    </header>
+
+    <main>
+      <div id="alerteGlobale"></div>
+
+      <section id="etapeDepot">
+        <h2>1 · Fiche et photos</h2>
+        <div class="depot" id="zoneDepot">
+          <strong>Glissez ici la fiche PDF et les photos</strong>
+          <span>ou cliquez pour les choisir — un seul PDF, autant de photos que nécessaire</span>
+        </div>
+        <input type="file" id="selecteur" multiple accept=".pdf,image/*" hidden />
+        <div class="liste-fichiers" id="listeFichiers"></div>
+        <div class="barre-actions">
+          <span class="note" id="noteDepot"></span>
+          <button class="principal" id="boutonAnalyser" disabled>Lire la fiche</button>
+        </div>
+      </section>
+
+      <section id="etapeRelecture" hidden>
+        <h2>2 · Relecture</h2>
+        <div id="avis"></div>
+        <form id="formulaire"></form>
+      </section>
+
+      <section id="etapePhotos" hidden>
+        <h2>3 · Photos <span style="text-transform: none; font-weight: 400">(la première est la photo principale — glissez pour réordonner)</span></h2>
+        <div class="grille-photos" id="grillePhotos"></div>
+      </section>
+
+      <section id="etapeEnvoi" hidden>
+        <h2>4 · Envoi vers Webflow</h2>
+        <div class="barre-actions" style="border-top: 0; padding-top: 0">
+          <span class="note">
+            Le brouillon apparaît dans le CMS Webflow sans être visible sur le site :
+            c'est le mode recommandé pour une dernière vérification.
+          </span>
+          <button class="secondaire" id="boutonPublier">Publier en ligne</button>
+          <button class="principal" id="boutonBrouillon">Créer en brouillon</button>
+        </div>
+        <div id="resultat"></div>
+      </section>
+    </main>
+
+    <script type="module">
+      const $ = (id) => document.getElementById(id);
+      const etat = { config: null, fichiers: [], depot: null, photos: [] };
+
+      const echapper = (t) =>
+        String(t ?? '').replace(/[&<>"']/g, (c) =>
+          ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]
+        );
+
+      function avis(conteneur, type, titre, lignes = []) {
+        const liste = lignes.length
+          ? `<ul>${lignes.map((l) => `<li>${echapper(l)}</li>`).join('')}</ul>`
+          : '';
+        conteneur.innerHTML += `<div class="avis ${type}"><strong>${echapper(titre)}</strong>${liste}</div>`;
+      }
+
+      async function appel(url, options) {
+        const reponse = await fetch(url, options);
+        const donnees = await reponse.json().catch(() => ({}));
+        if (!reponse.ok) throw new Error(donnees.erreur || `Erreur ${reponse.status}`);
+        return donnees;
+      }
+
+      // ── Configuration ─────────────────────────────────────────────────
+      try {
+        etat.config = await appel('/api/config');
+        if (!etat.config.configure) {
+          $('contexte').textContent = 'Aucune collection configurée.';
+          avis($('alerteGlobale'), 'erreur', 'Configuration manquante', [
+            'Lancez « npm run setup » dans le dossier du projet pour choisir le site et la collection.',
+          ]);
+          $('etapeDepot').hidden = true;
+        } else {
+          $('contexte').textContent =
+            `Site « ${etat.config.site} » · collection « ${etat.config.collection} »`;
+          if (!etat.config.lectureAuto) {
+            avis($('alerteGlobale'), 'alerte', 'Lecture automatique désactivée', [
+              'ANTHROPIC_API_KEY est absente du fichier .env : les champs devront être saisis à la main.',
+            ]);
+          }
+          if (etat.config.champsNonGeres?.length) {
+            avis($('alerteGlobale'), 'alerte', 'Champs à renseigner directement dans Webflow',
+              etat.config.champsNonGeres);
+          }
+        }
+      } catch (erreur) {
+        $('contexte').textContent = 'Erreur de configuration.';
+        avis($('alerteGlobale'), 'erreur', erreur.message);
+        $('etapeDepot').hidden = true;
+      }
+
+      // ── Étape 1 : dépôt ───────────────────────────────────────────────
+      const zone = $('zoneDepot');
+      zone.addEventListener('click', () => $('selecteur').click());
+      $('selecteur').addEventListener('change', (e) => ajouterFichiers(e.target.files));
+      ['dragenter', 'dragover'].forEach((e) =>
+        zone.addEventListener(e, (ev) => {
+          ev.preventDefault();
+          zone.classList.add('survol');
+        })
+      );
+      ['dragleave', 'drop'].forEach((e) =>
+        zone.addEventListener(e, (ev) => {
+          ev.preventDefault();
+          zone.classList.remove('survol');
+        })
+      );
+      zone.addEventListener('drop', (ev) => ajouterFichiers(ev.dataTransfer.files));
+
+      function ajouterFichiers(liste) {
+        for (const fichier of liste) {
+          if (!etat.fichiers.some((f) => f.name === fichier.name && f.size === fichier.size)) {
+            etat.fichiers.push(fichier);
+          }
+        }
+        etat.fichiers.sort((a, b) =>
+          a.name.localeCompare(b.name, 'fr', { numeric: true, sensitivity: 'base' })
+        );
+        afficherFichiers();
+      }
+
+      function afficherFichiers() {
+        const pdfs = etat.fichiers.filter((f) => f.name.toLowerCase().endsWith('.pdf'));
+        const images = etat.fichiers.filter((f) => f.type.startsWith('image/'));
+        const autres = etat.fichiers.filter((f) => !pdfs.includes(f) && !images.includes(f));
+
+        $('listeFichiers').innerHTML = etat.fichiers.length
+          ? `<b>${pdfs.length}</b> fiche PDF · <b>${images.length}</b> photo(s)`
+            + (autres.length ? ` · <b>${autres.length}</b> fichier(s) ignoré(s)` : '')
+            + `<br />${etat.fichiers.map((f) => echapper(f.name)).join(' · ')}`
+          : '';
+
+        $('noteDepot').textContent =
+          pdfs.length > 1 ? 'Plusieurs PDF déposés : n’en gardez qu’un seul.' : '';
+        $('boutonAnalyser').disabled = etat.fichiers.length === 0 || pdfs.length > 1;
+      }
+
+      $('boutonAnalyser').addEventListener('click', async () => {
+        const bouton = $('boutonAnalyser');
+        bouton.disabled = true;
+        $('noteDepot').innerHTML =
+          '<span class="chargement"><span class="rond"></span>Lecture de la fiche et préparation des photos…</span>';
+        try {
+          const formulaire = new FormData();
+          etat.fichiers.forEach((f) => formulaire.append('fichiers', f, f.name));
+          const donnees = await appel('/api/analyse', { method: 'POST', body: formulaire });
+          etat.depot = donnees;
+          etat.photos = donnees.photos.map((p) => p.index);
+          afficherRelecture(donnees);
+          $('noteDepot').textContent = '';
+          $('etapeRelecture').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } catch (erreur) {
+          $('noteDepot').textContent = '';
+          avis($('alerteGlobale'), 'erreur', 'La lecture a échoué', [erreur.message]);
+        } finally {
+          bouton.disabled = false;
+        }
+      });
+
+      // ── Étape 2 : relecture ───────────────────────────────────────────
+      function afficherRelecture(donnees) {
+        const conteneurAvis = $('avis');
+        conteneurAvis.innerHTML = '';
+        if (donnees.remarques?.length) {
+          avis(conteneurAvis, 'alerte', 'Points à vérifier avant publication', donnees.remarques);
+        }
+        if (donnees.avertissements?.length) {
+          avis(conteneurAvis, 'alerte', 'Avertissements techniques', donnees.avertissements);
+        }
+
+        const formulaire = $('formulaire');
+        formulaire.innerHTML = '';
+        for (const champ of etat.config.champs) {
+          formulaire.insertAdjacentHTML('beforeend', gabaritChamp(champ, donnees.fieldData[champ.slug]));
+        }
+        $('etapeRelecture').hidden = false;
+        $('etapePhotos').hidden = donnees.photos.length === 0;
+        $('etapeEnvoi').hidden = false;
+        afficherPhotos();
+      }
+
+      function gabaritChamp(champ, valeur) {
+        const vide = valeur === undefined || valeur === null || valeur === '';
+        const libelle =
+          `<label for="c-${champ.slug}">${echapper(champ.libelle)}`
+          + (champ.obligatoire ? '<span class="requis">*</span>' : '')
+          + (champ.aide ? `<span class="aide">${echapper(champ.aide)}</span>` : '')
+          + '</label>';
+
+        let controle;
+        if (champ.type === 'RichText') {
+          controle = `<div class="aide" style="margin:-2px 0 6px">Mise en forme HTML simple : &lt;p&gt;, &lt;strong&gt;, &lt;ul&gt;&lt;li&gt;</div><textarea id="c-${champ.slug}" data-slug="${champ.slug}" data-type="${champ.type}">${echapper(valeur ?? '')}</textarea>`;
+        } else if (champ.type === 'Number') {
+          controle = `<input type="number" step="any" id="c-${champ.slug}" data-slug="${champ.slug}" data-type="${champ.type}" value="${echapper(valeur ?? '')}" />`;
+        } else if (champ.type === 'Switch') {
+          controle = `<div class="interrupteur"><input type="checkbox" id="c-${champ.slug}" data-slug="${champ.slug}" data-type="${champ.type}" ${valeur ? 'checked' : ''} /><span>Oui</span></div>`;
+        } else if (champ.type === 'Option') {
+          const choix = ['', ...champ.options]
+            .map((o) => `<option value="${echapper(o)}" ${o === valeur ? 'selected' : ''}>${echapper(o || '— non renseigné —')}</option>`)
+            .join('');
+          controle = `<select id="c-${champ.slug}" data-slug="${champ.slug}" data-type="${champ.type}">${choix}</select>`;
+        } else {
+          controle = `<input type="text" id="c-${champ.slug}" data-slug="${champ.slug}" data-type="${champ.type}" value="${echapper(valeur ?? '')}" />`;
+        }
+        return `<div class="champ ${vide ? 'vide' : ''}">${libelle}${controle}</div>`;
+      }
+
+      function releverFormulaire() {
+        const fieldData = {};
+        for (const controle of $('formulaire').querySelectorAll('[data-slug]')) {
+          const slug = controle.dataset.slug;
+          if (controle.dataset.type === 'Switch') {
+            fieldData[slug] = controle.checked;
+          } else if (controle.value !== '') {
+            fieldData[slug] =
+              controle.dataset.type === 'Number' ? Number(controle.value) : controle.value;
+          }
+        }
+        return fieldData;
+      }
+
+      // ── Étape 3 : photos ──────────────────────────────────────────────
+      function afficherPhotos() {
+        const grille = $('grillePhotos');
+        grille.innerHTML = etat.photos
+          .map((index, rang) => {
+            const photo = etat.depot.photos.find((p) => p.index === index);
+            return `
+              <div class="photo ${rang === 0 ? 'premiere' : ''}" draggable="true" data-rang="${rang}">
+                <img src="${photo.apercu}" alt="${echapper(photo.nom)}" />
+                ${rang === 0 ? '<span class="etiquette">principale</span>' : ''}
+                <div class="meta">
+                  <span title="${echapper(photo.nom)}">${echapper(photo.nom)}</span>
+                  <span>${Math.round(photo.poids / 1024)} ko</span>
+                </div>
+                <div class="actions">
+                  <button type="button" data-action="gauche" data-rang="${rang}" title="Reculer">&larr;</button>
+                  <button type="button" data-action="principale" data-rang="${rang}" title="Mettre en première">&starf;</button>
+                  <button type="button" data-action="droite" data-rang="${rang}" title="Avancer">&rarr;</button>
+                  <button type="button" data-action="retirer" data-rang="${rang}" title="Retirer">&times;</button>
+                </div>
+              </div>`;
+          })
+          .join('');
+      }
+
+      $('grillePhotos').addEventListener('click', (ev) => {
+        const bouton = ev.target.closest('button[data-action]');
+        if (!bouton) return;
+        const rang = Number(bouton.dataset.rang);
+        const actions = {
+          gauche: () => rang > 0 && deplacer(rang, rang - 1),
+          droite: () => rang < etat.photos.length - 1 && deplacer(rang, rang + 1),
+          principale: () => deplacer(rang, 0),
+          retirer: () => etat.photos.splice(rang, 1),
+        };
+        actions[bouton.dataset.action]();
+        afficherPhotos();
+      });
+
+      function deplacer(depuis, vers) {
+        const [element] = etat.photos.splice(depuis, 1);
+        etat.photos.splice(vers, 0, element);
+      }
+
+      let rangGlisse = null;
+      $('grillePhotos').addEventListener('dragstart', (ev) => {
+        const carte = ev.target.closest('.photo');
+        if (!carte) return;
+        rangGlisse = Number(carte.dataset.rang);
+        carte.classList.add('glisse');
+      });
+      $('grillePhotos').addEventListener('dragend', (ev) =>
+        ev.target.closest('.photo')?.classList.remove('glisse')
+      );
+      $('grillePhotos').addEventListener('dragover', (ev) => ev.preventDefault());
+      $('grillePhotos').addEventListener('drop', (ev) => {
+        ev.preventDefault();
+        const carte = ev.target.closest('.photo');
+        if (!carte || rangGlisse === null) return;
+        deplacer(rangGlisse, Number(carte.dataset.rang));
+        rangGlisse = null;
+        afficherPhotos();
+      });
+
+      // ── Étape 4 : envoi ───────────────────────────────────────────────
+      async function envoyer(publier) {
+        const manquants = etat.config.champs.filter((c) => {
+          if (!c.obligatoire) return false;
+          const controle = document.getElementById('c-' + c.slug);
+          return !controle || controle.value === '';
+        });
+        if (manquants.length) {
+          const suite = confirm(
+            'Champs obligatoires non renseignés :\n· '
+              + manquants.map((c) => c.libelle).join('\n· ')
+              + '\n\nWebflow refusera peut-être l’enregistrement. Continuer ?'
+          );
+          if (!suite) return;
+        }
+        if (publier && !confirm("Publier cette annonce en ligne, visible immédiatement sur le site ?")) {
+          return;
+        }
+
+        $('boutonBrouillon').disabled = true;
+        $('boutonPublier').disabled = true;
+        $('resultat').innerHTML =
+          '<div class="journal"><span class="chargement"><span class="rond"></span>Envoi des photos et création de l’annonce…</span></div>';
+
+        try {
+          const donnees = await appel('/api/envoyer', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              identifiant: etat.depot.identifiant,
+              fieldData: releverFormulaire(),
+              ordrePhotos: etat.photos,
+              publier,
+            }),
+          });
+          $('resultat').innerHTML = '';
+          avis(
+            $('resultat'),
+            'ok',
+            donnees.publie
+              ? `Annonce publiée : ${donnees.nom}`
+              : `Annonce créée en brouillon : ${donnees.nom}`,
+            [
+              `Adresse (slug) : ${donnees.slug}`,
+              `${donnees.photos} photo(s) envoyée(s) dans la bibliothèque du site`,
+              donnees.publie
+                ? 'Publiez le site dans Webflow si la page de liste doit être régénérée.'
+                : 'Ouvrez le CMS Webflow pour relire, puis publiez.',
+            ]
+          );
+          $('resultat').innerHTML += `<div class="journal">${donnees.journal.map(echapper).join('\n')}</div>`;
+        } catch (erreur) {
+          $('resultat').innerHTML = '';
+          avis($('resultat'), 'erreur', "L'envoi a échoué", [erreur.message]);
+          $('boutonBrouillon').disabled = false;
+          $('boutonPublier').disabled = false;
+        }
+      }
+
+      $('boutonBrouillon').addEventListener('click', () => envoyer(false));
+      $('boutonPublier').addEventListener('click', () => envoyer(true));
+    </script>
+  </body>
+</html>

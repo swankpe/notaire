@@ -1,0 +1,11 @@
+node_modules/
+
+# Secrets et configuration locale : jamais versionnes.
+.env
+config/config.json
+
+# Dossiers des biens : fiches et photos des clients de l'etude.
+biens/*/
+
+.tmp/
+*.log
