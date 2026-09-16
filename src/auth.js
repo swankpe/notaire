@@ -119,6 +119,17 @@ export function lireCookie(entete) {
 
 /** Middleware Express : laisse passer si la session est valide. */
 export function exigerSession(requete, reponse, suite) {
+  // En ligne, pas de mot de passe = pas de service. Sur Vercel, une variable
+  // ajoutee apres coup ne prend effet qu'au deploiement suivant : sans ce
+  // garde-fou, « j'ajoute MOT_DE_PASSE puis j'oublie de redeployer » laisserait
+  // l'outil publier pour qui trouve l'adresse. On echoue bruyamment.
+  if (surVercel && !protectionActive()) {
+    return reponse.status(503).json({
+      erreur:
+        "MOT_DE_PASSE n'est pas définie : l'outil refuse de fonctionner en ligne sans "
+        + 'protection. Ajoutez la variable dans Vercel, puis redéployez.',
+    });
+  }
   if (!protectionActive()) return suite(); // usage local sans mot de passe
   if (sessionValide(lireCookie(requete.headers.cookie))) return suite();
   reponse.status(401).json({ erreur: 'Session expirée ou absente.', connexionRequise: true });

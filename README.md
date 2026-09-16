@@ -115,6 +115,13 @@ valable 12 heures. Changer le mot de passe invalide les sessions ouvertes.
 
 `npm run vercel` vous en propose un, tiré au hasard.
 
+**En ligne, l'outil refuse de fonctionner si `MOT_DE_PASSE` est absente** : il
+répond `503` sur toutes ses routes et écrit un avertissement dans les journaux
+Vercel. C'est volontaire — sur Vercel, une variable ajoutée après coup ne prend
+effet qu'au déploiement suivant, et « j'ajoute le mot de passe puis j'oublie de
+redéployer » laisserait sinon le site ouvert. En local, l'absence de mot de
+passe reste permise et simplement signalée.
+
 ### 2. Créer le projet
 
 1. Poussez le dépôt sur GitHub (c'est déjà le cas).
@@ -232,8 +239,9 @@ Changez `MOT_DE_PASSE` dans les variables Vercel et redéployez.
 npm test
 ```
 
-42 tests : structure de collection, conversion des valeurs, préparation des
-photos, protection par mot de passe, et le parcours complet de publication.
+43 tests : structure de collection, conversion des valeurs, préparation des
+photos, protection par mot de passe, garde-fou en ligne, et le parcours complet
+de publication.
 Ils utilisent un faux serveur Webflow et une fiche PDF d'exemple : ils ne
 touchent ni à votre site, ni à votre quota d'API.
 

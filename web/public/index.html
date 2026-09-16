@@ -550,12 +550,14 @@
       function gabaritChamp(champ, valeur) {
         const vide = valeur === undefined || valeur === null || valeur === '';
         const libelle =
-          `<label for="c-${champ.slug}">${echapper(champ.libelle)}`
+          `<label for="c-${echapper(champ.slug)}">${echapper(champ.libelle)}`
           + (champ.obligatoire ? '<span class="requis">*</span>' : '')
           + (champ.aide ? `<span class="aide">${echapper(champ.aide)}</span>` : '')
           + '</label>';
 
-        const attributs = `id="c-${champ.slug}" data-slug="${champ.slug}" data-type="${champ.type}"`;
+        const attributs =
+          `id="c-${echapper(champ.slug)}" data-slug="${echapper(champ.slug)}" `
+          + `data-type="${echapper(champ.type)}"`;
         let controle;
         if (champ.type === 'RichText') {
           controle =

@@ -267,6 +267,49 @@ await verifier('la deconnexion ferme la session', async () => {
   assert.equal(statut, 401);
 });
 
+console.log('\nGarde-fou en ligne');
+
+await verifier('en ligne sans mot de passe, l\'outil refuse de servir', async () => {
+  // Sur Vercel, une variable ajoutee apres coup n'est prise en compte qu'au
+  // deploiement suivant : l'outil doit echouer bruyamment, pas s'ouvrir.
+  const nu = spawn(process.execPath, [path.join(racine, 'server.js')], {
+    env: {
+      ...process.env,
+      PORT: '4594',
+      VERCEL: '1',
+      WEBFLOW_TOKEN: 'JETON-TEST',
+      WEBFLOW_API_BASE: faux.base,
+      WEBFLOW_SITE_ID: 'site1',
+      WEBFLOW_COLLECTION_ID: 'col1',
+      MOT_DE_PASSE: '',
+      ANTHROPIC_API_KEY: '',
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let journal = '';
+  nu.stderr.on('data', (d) => (journal += d));
+
+  try {
+    let pret = false;
+    for (let i = 0; i < 60 && !pret; i++) {
+      try {
+        pret = (await fetch('http://127.0.0.1:4594/api/session')).ok;
+      } catch {}
+      if (!pret) await new Promise((r) => setTimeout(r, 250));
+    }
+    assert.ok(pret, "le serveur de controle n'a pas demarre");
+
+    for (const chemin of ['/api/config', '/api/slug', '/api/media', '/api/creer']) {
+      const reponse = await fetch('http://127.0.0.1:4594' + chemin, { method: 'POST' });
+      assert.equal(reponse.status, 503, chemin + ' devrait etre refuse');
+      assert.match((await reponse.json()).erreur, /MOT_DE_PASSE/);
+    }
+    assert.match(journal, /ATTENTION/, 'la mise en garde doit apparaitre dans les journaux');
+  } finally {
+    nu.kill();
+  }
+});
+
 serveur.kill();
 await faux.arreter();
 if (configExistante) fs.writeFileSync(cheminConfig, configExistante);

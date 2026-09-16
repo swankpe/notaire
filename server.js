@@ -8,7 +8,13 @@ const app = creerApplication();
 const port = Number(process.env.PORT) || 4000;
 
 app.listen(port, surVercel ? undefined : '127.0.0.1', () => {
-  if (surVercel) return console.log('Application prête.');
+  const alerte = alerteConfiguration();
+
+  if (surVercel) {
+    // Visible dans les journaux Vercel, ou c'est le seul signal disponible.
+    if (alerte) console.error('ATTENTION : ' + alerte);
+    return console.log('Application prête.');
+  }
 
   const config = lireConfig();
   console.log(`\n  Outil de publication Webflow — http://localhost:${port}`);
@@ -20,7 +26,6 @@ app.listen(port, surVercel ? undefined : '127.0.0.1', () => {
   if (!cleAnthropic()) {
     console.log('  Lecture automatique des fiches désactivée (ANTHROPIC_API_KEY absente).');
   }
-  const alerte = alerteConfiguration();
   if (alerte) console.log(`  ${alerte}`);
   console.log(`  Dossier du projet : ${racine}\n`);
 });

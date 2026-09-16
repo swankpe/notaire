@@ -34,7 +34,7 @@ structure actuelle.
 | --- | --- |
 | `server.js` | point d'entrée unique (local et Vercel) |
 | `web/app.js` | routes Express, protégées par `exigerSession` |
-| `src/auth.js` | mot de passe partagé, cookie HMAC dérivé du mot de passe |
+| `src/auth.js` | mot de passe partagé, cookie HMAC dérivé du mot de passe ; **échoue fermé** en ligne sans mot de passe |
 | `src/webflow.js` | API Webflow v2 : cadence, reprises, médias en deux temps (métadonnées Webflow puis dépôt S3, champ `file` en dernier) |
 | `src/schema.js` | collection Webflow → schéma JSON → `fieldData` |
 | `src/extraction.js` | lecture de la fiche PDF via l'API Claude (document base64) |
@@ -76,3 +76,6 @@ pas hors d'un vrai navigateur.
   `/api/slug`, appelé avant le premier envoi de photo.
 - Dans le faux serveur S3, `filename="…"` contient `name="` : la vérification
   des champs multipart exige un préfixe.
+- `exigerSession` échoue **fermé** (503) quand `surVercel && !protectionActive()`.
+  Ne pas assouplir : sur Vercel une variable ajoutée après coup n'est prise en
+  compte qu'au déploiement suivant, et le fail-open serait silencieux.
