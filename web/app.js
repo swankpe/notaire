@@ -24,6 +24,7 @@ import {
   lireItem,
 } from '../src/webflow.js';
 import { lireStyle, redigerPublication, lienDuBien } from '../src/publication.js';
+import { espaceDeTravail } from '../src/claude.js';
 import { analyserCollection, choisirChampImage, choisirChampGalerie } from '../src/schema.js';
 import {
   chargerStructure,
@@ -105,6 +106,7 @@ export function creerApplication() {
         configure: false,
         jetonPresent: Boolean(jetonWebflowOptionnel()),
         lectureAuto: Boolean(cleAnthropic()),
+        espaceDeTravail: Boolean(espaceDeTravail()),
       });
     }
 
@@ -114,6 +116,9 @@ export function creerApplication() {
       site: config.siteNom,
       collection: structure.nom,
       lectureAuto: Boolean(cleAnthropic()),
+      // Presence seule, jamais la valeur : de quoi diagnostiquer une cle
+      // d'organisation sans exposer quoi que ce soit.
+      espaceDeTravail: Boolean(espaceDeTravail()),
       fichePdfActivee: Boolean(config.champFichePdf),
       photoLargeurMax: config.photoLargeurMax,
       photoQualite: config.photoQualite,

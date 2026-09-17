@@ -131,6 +131,11 @@ await verifier('la configuration vient des variables d\'environnement', async ()
   assert.equal(config.fichePdfActivee, true);
   assert.equal(config.photoLargeurMax, 1600);
   assert.equal(config.lectureAuto, false);
+  assert.equal(config.espaceDeTravail, false, "presence signalee, valeur jamais exposee");
+  assert.ok(
+    !JSON.stringify(config).match(/JETON-TEST|sk-ant/),
+    'aucune valeur de secret ne doit transiter dans /api/config'
+  );
   const slugs = config.champs.map((c) => c.slug);
   assert.ok(slugs.includes('prix'));
   assert.ok(!slugs.includes('galerie'), 'les champs photos ne sont pas des champs de formulaire');
