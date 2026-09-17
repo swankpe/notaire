@@ -116,6 +116,13 @@ export function demarrerFauxWebflow(port = 4599) {
     });
   });
 
+  app.get('/v2/collections/:cid/items/:iid', (requete, reponse) => {
+    const lot = requete.params.cid === 'col2' ? referencables : items;
+    const item = lot.find((i) => i.id === requete.params.iid);
+    if (!item) return reponse.status(404).json({ message: 'Item introuvable' });
+    reponse.json(item);
+  });
+
   app.post('/v2/collections/:id/items', (requete, reponse) => {
     const { fieldData, isDraft } = requete.body;
     if (!fieldData?.name || !fieldData?.slug) {

@@ -301,6 +301,37 @@ await verifier('aucun etat serveur n\'est necessaire entre les etapes', async ()
   assert.equal(corps.slug, 'longere-a-plouha');
 });
 
+console.log('\nPublication Facebook');
+
+await verifier('la liste des biens est servie, du plus recent au plus ancien', async () => {
+  const { statut, corps } = await appel('/api/biens');
+  assert.equal(statut, 200);
+  assert.ok(corps.biens.length >= 2, 'les annonces creees plus haut doivent apparaitre');
+  assert.ok(corps.biens.every((b) => b.id && b.nom));
+  assert.ok(corps.biens.some((b) => b.brouillon), 'le statut brouillon est signale');
+});
+
+await verifier('la redaction exige un bien', async () => {
+  const { statut, corps } = await appel('/api/publication', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({}),
+  });
+  assert.equal(statut, 400);
+  assert.match(corps.erreur, /bien/);
+});
+
+await verifier('sans cle Claude, la redaction remonte un message clair', async () => {
+  const premier = (await appel('/api/biens')).corps.biens[0];
+  const { statut, corps } = await appel('/api/publication', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ itemId: premier.id }),
+  });
+  assert.equal(statut, 500);
+  assert.match(corps.erreur, /ANTHROPIC_API_KEY/);
+});
+
 await verifier('la deconnexion ferme la session', async () => {
   await appel('/api/deconnexion', { method: 'POST' });
   cookie = 'notaire_session=';
@@ -395,6 +426,7 @@ await verifier('les routes de configuration sont aussi fermees sans session', as
     '/api/collections?siteId=site1',
     '/api/reglages',
     '/api/references?collectionId=col2',
+    '/api/biens',
   ]) {
     const reponse = await fetch(BASE + chemin);
     assert.equal(reponse.status, 401, chemin + ' devrait etre ferme');

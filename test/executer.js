@@ -378,6 +378,57 @@ await verifier('un jeton invalide donne un message comprehensible', async () => 
   process.env.WEBFLOW_TOKEN = 'JETON-TEST';
 });
 
+console.log('\nPublication Facebook');
+
+const publication = await import('../src/publication.js');
+
+await verifier('le style se lit et contient des exemples reels', () => {
+  const style = publication.lireStyle();
+  assert.ok(style.exemples.length >= 2, 'les exemples pesent plus que les consignes');
+  assert.match(style.urlBien, /\{slug\}/, "le gabarit d'URL doit porter un emplacement de slug");
+  assert.ok(style.consignes.length > 200);
+});
+
+await verifier('le lien du bien se construit depuis le slug', () => {
+  const style = { urlBien: 'https://exemple.fr/maison/{slug}' };
+  assert.equal(
+    publication.lienDuBien(style, { fieldData: { slug: 'longere-a-plouha' } }),
+    'https://exemple.fr/maison/longere-a-plouha'
+  );
+  assert.equal(publication.lienDuBien(style, { fieldData: {} }), null, 'pas de slug, pas de lien');
+  assert.equal(publication.lienDuBien({ urlBien: null }, { fieldData: { slug: 'x' } }), null);
+});
+
+await verifier('la fiche transmise a la redaction est lisible et debarrassee du bruit', () => {
+  const texte = publication.decrireBien(structure, {
+    fieldData: {
+      name: 'Maison 6 pieces',
+      prix: 285000,
+      descriptif: '<p>Sejour double <strong>avec</strong> cheminee.</p>',
+      slug: 'maison-6-pieces',
+      'photo-principale': { fileId: 'media1', url: 'https://cdn/x.jpg' },
+      galerie: [{ fileId: 'media2' }],
+      dpe: '',
+    },
+  });
+  assert.match(texte, /Titre : Maison 6 pieces/);
+  assert.match(texte, /Prix : 285000/);
+  assert.match(texte, /Sejour double avec cheminee\./, 'le HTML est aplati');
+  assert.ok(!/photo-principale|media1|cdn/.test(texte), 'les photos n aident pas a rediger');
+  assert.ok(!texte.includes('maison-6-pieces'), 'le slug non plus');
+  assert.ok(!/DPE/.test(texte), 'un champ vide est ecarte');
+});
+
+await verifier('sans cle Claude, la redaction refuse clairement', async () => {
+  await assert.rejects(
+    publication.redigerPublication({ structure, item: { fieldData: {} }, style: publication.lireStyle() }),
+    (erreur) => {
+      assert.match(erreur.message, /ANTHROPIC_API_KEY/);
+      return true;
+    }
+  );
+});
+
 console.log('\nConfiguration par variables d\'environnement');
 
 await verifier("l'environnement remplace le fichier de configuration", async () => {

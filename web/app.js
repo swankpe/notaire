@@ -16,7 +16,14 @@ import {
   surVercel,
   configPourVercel,
 } from '../src/config.js';
-import { listerSites, listerCollections, lireCollection, listerItems } from '../src/webflow.js';
+import {
+  listerSites,
+  listerCollections,
+  lireCollection,
+  listerItems,
+  lireItem,
+} from '../src/webflow.js';
+import { lireStyle, redigerPublication, lienDuBien } from '../src/publication.js';
 import { analyserCollection, choisirChampImage, choisirChampGalerie } from '../src/schema.js';
 import {
   chargerStructure,
@@ -134,7 +141,8 @@ export function creerApplication() {
   app.get('/api/references', async (requete, reponse) => {
     const { collectionId } = requete.query;
     if (!collectionId) return reponse.status(400).json({ erreur: 'Collection manquante.' });
-    reponse.json({ items: await listerItems(collectionId, jetonWebflow()) });
+    const items = await listerItems(collectionId, jetonWebflow());
+    reponse.json({ items: items.map((i) => ({ id: i.id, nom: i.nom })) });
   });
 
   // ── Configuration initiale (tant qu'aucune collection n'est choisie) ────
@@ -279,6 +287,38 @@ export function creerApplication() {
       itemId: resultat.item?.id,
       photos: Array.isArray(medias) ? medias.length : 0,
       avertissements: resultat.avertissements ?? [],
+    });
+  });
+
+  // ── Publication Facebook ────────────────────────────────────────────────
+
+  app.get('/api/biens', async (requete, reponse) => {
+    const config = lireConfig();
+    const biens = await listerItems(config.collectionId, jetonWebflow(), { tri: 'recent' });
+    reponse.json({ biens, collection: config.collectionNom });
+  });
+
+  app.post('/api/publication', async (requete, reponse) => {
+    const config = lireConfig();
+    const jeton = jetonWebflow();
+    const { itemId } = requete.body ?? {};
+    if (!itemId) return reponse.status(400).json({ erreur: 'Aucun bien choisi.' });
+
+    const structure = await chargerStructure(config, jeton);
+    const item = await lireItem(config.collectionId, itemId, jeton);
+    const style = lireStyle();
+
+    const publication = await redigerPublication({
+      structure,
+      item,
+      style,
+      modele: config.modele,
+    });
+
+    reponse.json({
+      ...publication,
+      bien: item?.fieldData?.name ?? null,
+      lien: lienDuBien(style, item),
     });
   });
 

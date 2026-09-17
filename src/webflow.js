@@ -185,7 +185,7 @@ export async function chercherItemParSlug(collectionId, slug, jeton) {
  * champ « Reference ». On s'arrete a 500 : au-dela, une liste deroulante n'est
  * de toute facon plus le bon outil.
  */
-export async function listerItems(collectionId, jeton) {
+export async function listerItems(collectionId, jeton, { tri = 'nom' } = {}) {
   const trouves = [];
   for (let page = 0; page < 5; page++) {
     const lot = await requete(
@@ -197,12 +197,25 @@ export async function listerItems(collectionId, jeton) {
       trouves.push({
         id: item.id,
         nom: item.fieldData?.name ?? item.fieldData?.slug ?? item.id,
+        slug: item.fieldData?.slug ?? null,
+        cree: item.createdOn ?? null,
+        brouillon: Boolean(item.isDraft),
       });
     }
     if (items.length < 100) break;
   }
+
+  if (tri === 'recent') {
+    // Le bien qu'on veut annoncer est presque toujours le dernier ajoute.
+    return trouves.sort((a, b) => String(b.cree ?? '').localeCompare(String(a.cree ?? '')));
+  }
   const collateur = new Intl.Collator('fr', { numeric: true, sensitivity: 'base' });
   return trouves.sort((a, b) => collateur.compare(a.nom, b.nom));
+}
+
+/** Lit un element complet, avec toutes ses valeurs de champs. */
+export async function lireItem(collectionId, itemId, jeton) {
+  return requete(`/collections/${collectionId}/items/${itemId}`, { jeton });
 }
 
 // ── Medias ────────────────────────────────────────────────────────────────

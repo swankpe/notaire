@@ -38,6 +38,7 @@ structure actuelle.
 | `src/webflow.js` | API Webflow v2 : cadence, reprises, médias en deux temps (métadonnées Webflow puis dépôt S3, champ `file` en dernier) |
 | `src/schema.js` | collection Webflow → schéma JSON → `fieldData` ; isole `champsReference` (listes déroulantes) de `champsNonGeres` |
 | `src/extraction.js` | lecture de la fiche PDF via l'API Claude (document base64) |
+| `src/publication.js` | rédaction du post Facebook ; le style vient de `config/publication.json`, versionné |
 | `src/photos.js` | sharp : redressement, redimensionnement, JPEG, EXIF supprimés |
 | `src/pipeline.js` | les quatre étapes, indépendantes ; `publierBien` les chaîne pour la CLI |
 | `src/cli.js` | `setup`, `champs`, `import`, `vercel` |
@@ -79,6 +80,9 @@ pas hors d'un vrai navigateur.
 - Une référence s'écrit comme l'identifiant de l'élément (`"65c…"`), une
   multi-référence comme un tableau d'identifiants. La collection visée se lit
   dans `validations.collectionId`.
+- Le style des posts Facebook tient dans les **exemples** de
+  `config/publication.json`, pas dans les consignes. Pour corriger un ton qui
+  dérive, ajouter un bon post plutôt que réécrire les règles.
 - `exigerSession` échoue **fermé** (503) quand `surVercel && !protectionActive()`.
   Ne pas assouplir : sur Vercel une variable ajoutée après coup n'est prise en
   compte qu'au déploiement suivant, et le fail-open serait silencieux.

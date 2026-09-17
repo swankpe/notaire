@@ -174,6 +174,35 @@ en local (`npm start`) reste gratuit et strictement équivalent.
 
 ---
 
+## Rédiger un post Facebook
+
+Second onglet de l'outil. Vous choisissez un bien parmi ceux du CMS (les plus
+récents en tête, les brouillons signalés), et il rédige le post dans le style
+de vos publications précédentes, à partir de la fiche telle qu'elle figure sur
+le site.
+
+Le texte s'affiche dans une zone modifiable : relisez, corrigez, copiez. Rien
+n'est publié automatiquement — c'est vous qui collez dans Facebook.
+
+Le style se règle dans **`config/publication.json`**, versionné :
+
+| Clé | Rôle |
+| --- | --- |
+| `urlBien` | gabarit du lien vers la fiche, avec `{slug}` à la place de l'adresse du bien |
+| `consignes` | la structure attendue et le ton |
+| `exemples` | vos publications réelles |
+
+**Ce sont les exemples qui font le style**, davantage que les consignes. Quand
+un post vous plaît particulièrement, ajoutez-le à la liste : c'est le moyen le
+plus efficace de corriger le tir. Inversement, un exemple qui ne vous
+ressemble plus mérite d'être retiré.
+
+Comme pour la lecture des fiches, rien n'est inventé : une surface ou une
+proximité absente du CMS n'apparaît pas dans le post, et le manque est signalé
+au-dessus du texte.
+
+---
+
 ## Ce que l'outil remplit, et ce qu'il ne remplit pas
 
 | Type de champ Webflow | Traitement |

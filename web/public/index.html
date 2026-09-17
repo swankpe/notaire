@@ -68,6 +68,35 @@
       }
       .depot:hover, .depot.survol { border-color: var(--accent); background: #f4f9fd; }
       .depot.compact { padding: 18px; margin-top: 14px; }
+      #onglets { display: flex; gap: 6px; margin-bottom: 20px; }
+      .onglet {
+        background: none;
+        border: 1px solid transparent;
+        border-radius: 8px;
+        padding: 8px 16px;
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--encre-doux);
+      }
+      .onglet:hover { background: #eceff3; }
+      .onglet.actif {
+        background: var(--blanc);
+        border-color: var(--trait);
+        color: var(--encre);
+        font-weight: 600;
+      }
+      #posteFacebook {
+        width: 100%;
+        min-height: 420px;
+        padding: 14px 16px;
+        border: 1px solid var(--trait);
+        border-radius: 8px;
+        font: 14px/1.6 ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
+        resize: vertical;
+        background: var(--blanc);
+        color: var(--encre);
+        white-space: pre-wrap;
+      }
       .depot.compact strong { font-size: 14px; margin-bottom: 2px; }
       .depot strong { display: block; font-size: 16px; margin-bottom: 6px; }
       .depot span { color: var(--encre-doux); font-size: 13.5px; }
@@ -251,6 +280,11 @@
       <div id="application" hidden>
         <div id="alerteGlobale"></div>
 
+        <nav id="onglets" hidden>
+          <button type="button" class="onglet actif" data-vue="publier">Publier un bien</button>
+          <button type="button" class="onglet" data-vue="facebook">Post Facebook</button>
+        </nav>
+
         <section id="configuration" hidden>
           <h2>Configuration <span class="libre">— à faire une fois</span></h2>
           <div id="avisConfig"></div>
@@ -275,6 +309,7 @@
           <div id="resultatConfig"></div>
         </section>
 
+        <div id="vuePublier">
         <section id="etapeDepot">
           <h2>1 · Fiche et photos</h2>
           <div class="depot" id="zoneDepot">
@@ -321,6 +356,25 @@
           </div>
           <div id="resultat"></div>
         </section>
+        </div>
+
+        <div id="vueFacebook" hidden>
+          <section>
+            <h2>Rédiger un post Facebook</h2>
+            <div class="champ">
+              <label for="choixBien">Bien à annoncer</label>
+              <select id="choixBien" disabled><option>Chargement…</option></select>
+            </div>
+            <div class="barre-actions">
+              <span class="note" id="noteFacebook">
+                Le post est rédigé d'après la fiche du bien telle qu'elle figure dans le CMS,
+                dans le style de vos publications précédentes.
+              </span>
+              <button class="principal" id="boutonRediger" disabled>Rédiger le post</button>
+            </div>
+            <div id="resultatFacebook"></div>
+          </section>
+        </div>
       </div>
     </main>
 
@@ -415,6 +469,7 @@
 
         etat.champs = etat.config.champs;
         etat.references = etat.config.champsReference ?? [];
+        $('onglets').hidden = false;
         $('contexte').textContent =
           `Site « ${etat.config.site} » · collection « ${etat.config.collection} »`;
         if (!etat.config.lectureAuto) {
@@ -436,6 +491,111 @@
           $('contexte').textContent = 'Erreur.';
           avis($('alerteGlobale'), 'erreur', erreur.message);
         }
+      }
+
+      // ── Navigation entre les deux usages ──────────────────────────────
+      document.querySelectorAll('.onglet').forEach((bouton) =>
+        bouton.addEventListener('click', () => {
+          document.querySelectorAll('.onglet').forEach((b) => b.classList.remove('actif'));
+          bouton.classList.add('actif');
+          const facebook = bouton.dataset.vue === 'facebook';
+          $('vuePublier').hidden = facebook;
+          $('vueFacebook').hidden = !facebook;
+          if (facebook) chargerBiens();
+        })
+      );
+
+      let biensCharges = false;
+      async function chargerBiens() {
+        if (biensCharges) return;
+        biensCharges = true;
+        const liste = $('choixBien');
+        try {
+          const { biens } = await appel('/api/biens');
+          if (!biens.length) {
+            liste.innerHTML = '<option>Aucun bien dans la collection</option>';
+            return;
+          }
+          liste.innerHTML =
+            '<option value="">— choisissez —</option>'
+            + biens
+                .map(
+                  (b) =>
+                    `<option value="${echapper(b.id)}">${echapper(b.nom)}`
+                    + (b.brouillon ? ' (brouillon)' : '')
+                    + '</option>'
+                )
+                .join('');
+          liste.disabled = false;
+        } catch (erreur) {
+          biensCharges = false;
+          if (erreur instanceof SessionExpiree) return;
+          liste.innerHTML = '<option>Chargement impossible</option>';
+          avis($('resultatFacebook'), 'erreur', 'Lecture des biens impossible', [erreur.message]);
+        }
+      }
+
+      $('choixBien').addEventListener('change', (ev) => {
+        $('boutonRediger').disabled = !ev.target.value;
+      });
+
+      $('boutonRediger').addEventListener('click', async () => {
+        const itemId = $('choixBien').value;
+        $('boutonRediger').disabled = true;
+        $('resultatFacebook').innerHTML =
+          '<div class="journal"><span class="chargement"><span class="rond"></span>'
+          + 'Rédaction en cours…</span></div>';
+
+        try {
+          const post = await appel('/api/publication', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ itemId }),
+          });
+          afficherPost(post);
+        } catch (erreur) {
+          $('resultatFacebook').innerHTML = '';
+          if (!(erreur instanceof SessionExpiree)) {
+            avis($('resultatFacebook'), 'erreur', 'La rédaction a échoué', [erreur.message]);
+          }
+        } finally {
+          $('boutonRediger').disabled = false;
+        }
+      });
+
+      function afficherPost(post) {
+        $('resultatFacebook').innerHTML = '';
+        if (post.remarques?.length) {
+          avis($('resultatFacebook'), 'alerte', 'À vérifier avant de publier', post.remarques);
+        }
+        $('resultatFacebook').insertAdjacentHTML(
+          'beforeend',
+          `<p class="aide" style="margin: 14px 0 6px">Relisez et corrigez librement,
+             puis copiez :</p>
+           <textarea id="posteFacebook">${echapper(post.texte)}</textarea>
+           <div class="barre-actions" style="border-top: 0; padding-top: 12px">
+             <span class="note" id="compteurPost"></span>
+             <button class="secondaire" id="boutonCopierPost">Copier le post</button>
+           </div>`
+        );
+
+        const zone = $('posteFacebook');
+        const compteur = () => {
+          $('compteurPost').textContent = `${zone.value.length} caractères`;
+        };
+        compteur();
+        zone.addEventListener('input', compteur);
+
+        $('boutonCopierPost').addEventListener('click', async (ev) => {
+          try {
+            await navigator.clipboard.writeText(zone.value);
+            ev.target.textContent = 'Copié';
+            setTimeout(() => (ev.target.textContent = 'Copier le post'), 2000);
+          } catch {
+            zone.select();
+            ev.target.textContent = 'Sélectionné — faites Ctrl/Cmd + C';
+          }
+        });
       }
 
       // ── Configuration initiale ────────────────────────────────────────
