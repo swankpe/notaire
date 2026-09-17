@@ -306,6 +306,26 @@ await verifier("une photo illisible n'empeche pas la creation de l'annonce", asy
   assert.match(resultat.item.fieldData.galerie[0].url, /-01\.jpg$/, 'la numerotation reste continue');
 });
 
+await verifier('un slug de champ mal configure retombe sur la detection, avec avertissement', async () => {
+  const { photos: preparees } = await preparerPhotos([photos[0]]);
+  const resultat = await publierBien({
+    photos: [photos[0]],
+    fieldData: { name: 'Maison mal configuree', prix: 100000 },
+    structure,
+    config: { ...config, champImagePrincipale: 'slug-qui-nexiste-pas' },
+    publier: false,
+  });
+  assert.ok(
+    resultat.item.fieldData['photo-principale'],
+    'la photo doit quand meme etre attachee, pas perdue en silence'
+  );
+  assert.ok(
+    resultat.avertissements.some((a) => /slug-qui-nexiste-pas/.test(a)),
+    'et le reglage douteux doit etre signale'
+  );
+  assert.ok(preparees.length === 1);
+});
+
 await verifier("un doublon de slug est renomme au lieu d'ecraser l'annonce existante", async () => {
   const { slug, renomme } = await reserverSlug(
     { name: 'Maison 6 pieces - Saint-Brieuc' },

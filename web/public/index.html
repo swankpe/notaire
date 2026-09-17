@@ -67,6 +67,8 @@
         transition: border-color 0.15s, background 0.15s;
       }
       .depot:hover, .depot.survol { border-color: var(--accent); background: #f4f9fd; }
+      .depot.compact { padding: 18px; margin-top: 14px; }
+      .depot.compact strong { font-size: 14px; margin-bottom: 2px; }
       .depot strong { display: block; font-size: 16px; margin-bottom: 6px; }
       .depot span { color: var(--encre-doux); font-size: 13.5px; }
       .liste-fichiers { margin-top: 16px; font-size: 13.5px; color: var(--encre-doux); }
@@ -299,6 +301,12 @@
             <span class="libre">(la première est la photo principale — glissez pour réordonner)</span>
           </h2>
           <div class="grille-photos" id="grillePhotos"></div>
+          <div class="depot compact" id="zonePhotos">
+            <strong>Ajouter des photos</strong>
+            <span>glissez-les ici, ou cliquez pour les choisir</span>
+          </div>
+          <input type="file" id="selecteurPhotos" multiple accept="image/*" hidden />
+          <p class="aide" id="bilanPhotos" style="margin: 12px 0 0"></p>
         </section>
 
         <section id="etapeEnvoi" hidden>
@@ -644,25 +652,39 @@
         );
       }
 
-      async function preparerPhotos() {
-        const images = etat.fichiers.filter(estImage);
-        const photos = [];
+      /**
+       * Prépare les photos pas encore traitées et les ajoute à la suite.
+       * Appelable à tout moment : on peut compléter le lot après la relecture.
+       */
+      async function ajouterPhotos(fichiers) {
         const soucis = [];
-        for (const fichier of images) {
+        const nouvelles = [...fichiers].filter(
+          (f) =>
+            estImage(f) &&
+            !etat.photos.some((p) => p.nom === f.name && p.taille === f.size)
+        );
+        for (const fichier of nouvelles) {
           try {
-            const grande = await reduire(fichier, etat.config.photoLargeurMax || 2400, etat.config.photoQualite || 82);
+            const grande = await reduire(
+              fichier,
+              etat.config.photoLargeurMax || 2400,
+              etat.config.photoQualite || 82
+            );
             const vignette = await reduire(fichier, 400, 70);
-            photos.push({
+            etat.photos.push({
               nom: fichier.name,
+              taille: fichier.size,
               blob: grande,
               poids: grande.size,
               apercu: URL.createObjectURL(vignette),
             });
           } catch {
-            soucis.push(`Photo « ${fichier.name} » illisible : si elle vient d'un iPhone, exportez-la en JPEG.`);
+            soucis.push(
+              `Photo « ${fichier.name} » illisible : si elle vient d'un iPhone, exportez-la en JPEG.`
+            );
           }
         }
-        return { photos, soucis };
+        return soucis;
       }
 
       // ── Lecture de la fiche ───────────────────────────────────────────
@@ -678,8 +700,8 @@
           if (etat.pdf) formulaire.append('fiche', etat.pdf, etat.pdf.name);
           const lecture = await appel('/api/analyse', { method: 'POST', body: formulaire });
 
-          const { photos, soucis } = await preparerPhotos();
-          etat.photos = photos;
+          etat.photos = [];
+          const soucis = await ajouterPhotos(etat.fichiers);
 
           afficherRelecture(lecture, soucis);
           $('noteDepot').textContent = '';
@@ -716,7 +738,7 @@
         }
         chargerReferences();
         $('etapeRelecture').hidden = false;
-        $('etapePhotos').hidden = etat.photos.length === 0;
+        $('etapePhotos').hidden = false;
         $('etapeEnvoi').hidden = false;
         $('resultat').innerHTML = '';
         $('boutonBrouillon').disabled = false;
@@ -827,7 +849,48 @@
       }
 
       // ── Étape 3 : photos ──────────────────────────────────────────────
+      const zonePhotos = $('zonePhotos');
+      zonePhotos.addEventListener('click', () => $('selecteurPhotos').click());
+      $('selecteurPhotos').addEventListener('change', (e) => completerPhotos(e.target.files));
+      ['dragenter', 'dragover'].forEach((e) =>
+        zonePhotos.addEventListener(e, (ev) => {
+          ev.preventDefault();
+          zonePhotos.classList.add('survol');
+        })
+      );
+      ['dragleave', 'drop'].forEach((e) =>
+        zonePhotos.addEventListener(e, (ev) => {
+          ev.preventDefault();
+          zonePhotos.classList.remove('survol');
+        })
+      );
+      zonePhotos.addEventListener('drop', (ev) => completerPhotos(ev.dataTransfer.files));
+
+      async function completerPhotos(fichiers) {
+        const avant = etat.photos.length;
+        zonePhotos.querySelector('strong').textContent = 'Préparation…';
+        const soucis = await ajouterPhotos(fichiers);
+        zonePhotos.querySelector('strong').textContent = 'Ajouter des photos';
+        afficherPhotos();
+        if (soucis.length) avis($('avis'), 'alerte', 'Photos écartées', soucis);
+        if (etat.photos.length > avant) $('etapePhotos').hidden = false;
+      }
+
+      function poidsLisible(octets) {
+        return octets >= 1024 * 1024
+          ? (octets / 1024 / 1024).toFixed(1) + ' Mo'
+          : Math.round(octets / 1024) + ' ko';
+      }
+
       function afficherPhotos() {
+        const origine = etat.photos.reduce((t, p) => t + (p.taille ?? 0), 0);
+        const final = etat.photos.reduce((t, p) => t + p.poids, 0);
+        const gain = origine ? Math.round(100 - (final / origine) * 100) : 0;
+        $('bilanPhotos').textContent = etat.photos.length
+          ? `${etat.photos.length} photo(s) · ${poidsLisible(origine)} → ${poidsLisible(final)}`
+            + ` (${gain} % de moins) avant envoi vers Webflow`
+          : 'Aucune photo pour le moment.';
+
         $('grillePhotos').innerHTML = etat.photos
           .map(
             (photo, rang) => `
@@ -972,6 +1035,9 @@
 
           $('resultat').innerHTML = '';
           if (soucis.length) avis($('resultat'), 'alerte', 'Photos écartées', soucis);
+          if (resultat.avertissements?.length) {
+            avis($('resultat'), 'alerte', 'À vérifier dans Webflow', resultat.avertissements);
+          }
           avis(
             $('resultat'),
             'ok',

@@ -278,6 +278,7 @@ export function creerApplication() {
       slug: resultat.slug,
       itemId: resultat.item?.id,
       photos: Array.isArray(medias) ? medias.length : 0,
+      avertissements: resultat.avertissements ?? [],
     });
   });
 

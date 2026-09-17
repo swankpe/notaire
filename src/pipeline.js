@@ -19,6 +19,7 @@ import {
   versFieldData,
   variantePourOptions,
   fabriquerSlug,
+  reglagesIncoherents,
 } from './schema.js';
 import { lireFiche, extractionDisponible } from './extraction.js';
 import { preparerPhoto, preparerPhotos, messageDePhotoIllisible } from './photos.js';
@@ -130,12 +131,18 @@ export async function creerAnnonce({
   publier = false,
 }) {
   const donnees = { ...fieldData, slug };
+  const avertissements = reglagesIncoherents(structure, config);
 
   const champImage = choisirChampImage(structure, config.champImagePrincipale);
   const champGalerie = choisirChampGalerie(structure, config.champGalerie);
 
   if (champImage && medias[0]) {
     donnees[champImage.slug] = { fileId: medias[0].fileId, url: medias[0].url };
+  } else if (medias.length && !champImage) {
+    avertissements.push(
+      "Aucun champ Image dans cette collection : les photos ont été téléversées "
+      + "mais aucune n'a été désignée comme visuel principal."
+    );
   }
   if (champGalerie && medias.length) {
     // La premiere photo sert de visuel principal ; on la garde aussi dans la
@@ -169,7 +176,7 @@ export async function creerAnnonce({
     publication = await publierItems(config.collectionId, [item.id], jeton);
   }
 
-  return { item, publication, slug };
+  return { item, publication, slug, avertissements };
 }
 
 // ── Enchainement complet, pour la ligne de commande ───────────────────────
@@ -226,7 +233,7 @@ export async function publierBien({
   });
 
   if (publier) ecrire("Publication de l'annonce…");
-  return { ...resultat, medias, avertissements };
+  return { ...resultat, medias, avertissements: [...avertissements, ...resultat.avertissements] };
 }
 
 export { preparerPhotos };

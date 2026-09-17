@@ -32,9 +32,17 @@ export function analyserCollection(collection) {
   };
 }
 
-/** Choisit le champ « photo principale » : preference de config, sinon heuristique. */
+/**
+ * Choisit le champ « photo principale » : preference de config, sinon
+ * heuristique. Si le slug configure n'existe pas dans la collection, on
+ * retombe sur la detection automatique : mieux vaut une annonce illustree et
+ * un avertissement qu'une annonce sans photo, sans que personne le remarque.
+ */
 export function choisirChampImage(structure, prefere) {
-  if (prefere) return structure.champsImage.find((c) => c.slug === prefere) ?? null;
+  if (prefere) {
+    const exact = structure.champsImage.find((c) => c.slug === prefere);
+    if (exact) return exact;
+  }
   if (structure.champsImage.length === 0) return null;
   if (structure.champsImage.length === 1) return structure.champsImage[0];
   const indices = ['principal', 'main', 'cover', 'couverture', 'vignette', 'thumbnail', 'une'];
@@ -46,8 +54,28 @@ export function choisirChampImage(structure, prefere) {
 }
 
 export function choisirChampGalerie(structure, prefere) {
-  if (prefere) return structure.champsGalerie.find((c) => c.slug === prefere) ?? null;
+  if (prefere) {
+    const exact = structure.champsGalerie.find((c) => c.slug === prefere);
+    if (exact) return exact;
+  }
   return structure.champsGalerie[0] ?? null;
+}
+
+/** Signale un slug configure qui ne correspond a aucun champ de la collection. */
+export function reglagesIncoherents(structure, config) {
+  const soucis = [];
+  const verifier = (slug, liste, quoi) => {
+    if (slug && !liste.some((c) => c.slug === slug)) {
+      soucis.push(
+        `Le champ « ${slug} » configuré pour ${quoi} n'existe pas dans la collection `
+        + `« ${structure.nom} ». La détection automatique a pris le relais.`
+      );
+    }
+  };
+  verifier(config.champImagePrincipale, structure.champsImage, 'la photo principale');
+  verifier(config.champGalerie, structure.champsGalerie, 'la galerie');
+  verifier(config.champFichePdf, structure.champsFichier, 'la fiche PDF');
+  return soucis;
 }
 
 function typeJson(champ) {

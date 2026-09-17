@@ -6,8 +6,10 @@ dans le CMS Webflow**, en quelques minutes au lieu d'une saisie manuelle.
 Il fait, dans l'ordre :
 
 1. il lit la fiche PDF (même scannée) et en extrait les champs de votre collection ;
-2. il prépare les photos : redressement, redimensionnement, conversion JPEG et
-   **suppression des données EXIF**, donc des coordonnées GPS du logement ;
+2. il allège les photos : redressement, redimensionnement, conversion JPEG et
+   **suppression des données EXIF**, donc des coordonnées GPS du logement.
+   Une photo d'iPhone passe typiquement de 4,6 Mo à 430 Ko, soit **−91 %**,
+   et l'écran vous montre le gain réel avant l'envoi ;
 3. il vous montre tout à l'écran **pour relecture et correction** ;
 4. il envoie les photos dans la bibliothèque du site, puis crée l'annonce
    **en brouillon** (rien n'est visible en ligne tant que vous ne publiez pas).
@@ -69,7 +71,9 @@ Ouvrez <http://localhost:4000>, puis :
 2. cliquez **Lire la fiche** ;
 3. **relisez** : les champs trouvés sont pré-remplis, ceux laissés vides
    apparaissent sur fond crème, et les points douteux sont listés en haut ;
-4. réordonnez les photos si besoin — **la première est la photo principale** ;
+4. réordonnez les photos si besoin — **la première est la photo principale**,
+   les suivantes forment la galerie. Vous pouvez en **ajouter à tout moment**
+   depuis la zone sous la grille ;
 5. cliquez **Créer en brouillon**.
 
 L'annonce apparaît alors dans le CMS Webflow. Vous la relisez une dernière fois
@@ -211,7 +215,7 @@ d'environnement.
 | `champGalerie` | `WEBFLOW_CHAMP_GALERIE` | slug du champ galerie ; vide = détection automatique |
 | `champFichePdf` | `WEBFLOW_CHAMP_FICHE_PDF` | slug d'un champ *Fichier* où déposer la fiche PDF ; vide = la fiche n'est pas envoyée |
 | `consignes` | `CONSIGNES` | consignes libres pour la lecture automatique |
-| `photoLargeurMax` | `PHOTO_LARGEUR_MAX` | largeur maximale des photos (2400 px par défaut) |
+| `photoLargeurMax` | `PHOTO_LARGEUR_MAX` | largeur maximale des photos (2400 px par défaut ; 1920 divise encore le poids par deux) |
 | `photoQualite` | `PHOTO_QUALITE` | qualité JPEG (82 par défaut) |
 | `modele` | `MODELE` | modèle utilisé pour la lecture des fiches |
 
