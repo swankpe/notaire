@@ -14,6 +14,16 @@ const fixtures = path.join(ici, 'fixtures');
 const cheminConfig = path.join(racine, 'config', 'config.json');
 
 const MOT_DE_PASSE = 'mot-de-passe-de-test-suffisamment-long';
+// Les reglages versionnes du depot ne doivent pas influencer les tests :
+// on les met de cote le temps de l'execution.
+const cheminPartage = path.join(racine, 'config', 'webflow.json');
+const partageExistant = fs.existsSync(cheminPartage) ? fs.readFileSync(cheminPartage) : null;
+if (partageExistant) fs.rmSync(cheminPartage);
+const rendreReglages = () => {
+  if (partageExistant) fs.writeFileSync(cheminPartage, partageExistant);
+};
+process.on('exit', rendreReglages);
+
 const faux = await demarrerFauxWebflow(4598);
 const configExistante = fs.existsSync(cheminConfig) ? fs.readFileSync(cheminConfig) : null;
 if (configExistante) fs.rmSync(cheminConfig);

@@ -88,12 +88,13 @@ async function commandeSetup() {
     const dispo = structure.champsFichier.map((c) => c.slug).join(', ');
     console.log(`Fiche PDF         : ${GRIS('champs « Fichier » disponibles : ' + dispo)}`);
     console.log(
-      GRIS('                    renseignez « champFichePdf » dans config/config.json pour y déposer la fiche.')
+      GRIS('                    renseignez « champFichePdf » dans config/webflow.json pour y déposer la fiche.')
     );
   }
 
   ecrireConfig(config);
-  console.log(VERT('\nConfiguration enregistrée dans config/config.json'));
+  console.log(VERT('\nConfiguration enregistrée dans config/webflow.json'));
+  console.log(GRIS('Ce fichier est versionné : commitez-le pour qu\'il parte avec le déploiement.'));
   if (!cleAnthropic()) {
     console.log(
       JAUNE('ANTHROPIC_API_KEY absente : la lecture automatique des fiches sera désactivée.')

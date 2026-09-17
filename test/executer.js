@@ -6,7 +6,18 @@ import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 
 const ici = path.dirname(fileURLToPath(import.meta.url));
+const racine = path.join(ici, '..');
 const fixtures = path.join(ici, 'fixtures');
+
+// Les reglages versionnes du depot ne doivent pas influencer les tests :
+// on les met de cote le temps de l'execution.
+const cheminPartage = path.join(racine, 'config', 'webflow.json');
+const partageExistant = fs.existsSync(cheminPartage) ? fs.readFileSync(cheminPartage) : null;
+if (partageExistant) fs.rmSync(cheminPartage);
+const rendreReglages = () => {
+  if (partageExistant) fs.writeFileSync(cheminPartage, partageExistant);
+};
+process.on('exit', rendreReglages);
 
 process.env.WEBFLOW_TOKEN = 'JETON-TEST';
 process.env.MOT_DE_PASSE = 'un-mot-de-passe-de-test-assez-long';

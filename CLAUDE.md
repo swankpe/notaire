@@ -25,7 +25,7 @@ structure actuelle.
 | --- | --- |
 | 4,5 Mo par requête | Photos réduites côté navigateur (canvas), envoyées **une par une** via `/api/media`. La fiche PDF part seule. |
 | Pas de mémoire entre requêtes | Le navigateur garde les fichiers ; chaque route est autonome. Ne jamais réintroduire un cache de session côté serveur. |
-| Disque en lecture seule | `lireConfig()` lit les variables d'environnement, qui l'emportent sur `config/config.json`. L'écran de configuration ne peut donc rien **enregistrer** : il affiche les variables à recopier dans Vercel. |
+| Disque en lecture seule | Rien ne s'écrit à l'exécution. Les réglages non secrets vivent dans `config/webflow.json`, **versionné**, donc déployé avec le code ; seuls les secrets sont des variables d'environnement. L'écran de configuration ne peut rien enregistrer : il affiche les valeurs à reporter. |
 | Détection du point d'entrée | `server.js` doit rester **à la racine** : c'est ainsi que Vercel capture le serveur. |
 
 ## Architecture

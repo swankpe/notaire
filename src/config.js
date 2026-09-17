@@ -10,6 +10,10 @@ import { fileURLToPath } from 'node:url';
 import dotenv from 'dotenv';
 
 export const racine = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+// Reglages non secrets (site, collection, champs) : versionnes, donc deployes
+// avec le code. Rien ici ne donne d'acces sans le jeton d'API.
+export const cheminConfigPartagee = path.join(racine, 'config', 'webflow.json');
+// Surcharge locale, jamais versionnee.
 export const cheminConfig = path.join(racine, 'config', 'config.json');
 
 dotenv.config({ path: path.join(racine, '.env'), quiet: true });
@@ -52,10 +56,22 @@ const DEPUIS_ENV = {
   modele: 'MODELE',
 };
 
+function lireFichier(chemin) {
+  if (!fs.existsSync(chemin)) return {};
+  try {
+    return JSON.parse(fs.readFileSync(chemin, 'utf8'));
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Par ordre de priorite croissante : valeurs par defaut, fichier versionne,
+ * surcharge locale, variables d'environnement.
+ */
 export function lireConfig() {
-  const fichier = fs.existsSync(cheminConfig)
-    ? JSON.parse(fs.readFileSync(cheminConfig, 'utf8'))
-    : {};
+  const partagee = lireFichier(cheminConfigPartagee);
+  const locale = lireFichier(cheminConfig);
 
   const environnement = {};
   for (const [cle, variable] of Object.entries(DEPUIS_ENV)) {
@@ -70,13 +86,22 @@ export function lireConfig() {
     if (Number.isFinite(valeur) && valeur > 0) environnement[cle] = valeur;
   }
 
-  // L'environnement l'emporte : c'est lui qui fait foi sur Vercel.
-  return { ...CONFIG_PAR_DEFAUT, ...fichier, ...environnement };
+  return { ...CONFIG_PAR_DEFAUT, ...partagee, ...locale, ...environnement };
 }
 
+/** Ecrit les reglages non secrets, ceux qui doivent partir avec le code. */
 export function ecrireConfig(config) {
-  fs.mkdirSync(path.dirname(cheminConfig), { recursive: true });
-  fs.writeFileSync(cheminConfig, JSON.stringify(config, null, 2) + '\n');
+  const aGarder = [
+    'siteId', 'siteNom', 'collectionId', 'collectionNom',
+    'champImagePrincipale', 'champGalerie', 'champFichePdf',
+    'consignes', 'photoLargeurMax', 'photoQualite', 'modele',
+  ];
+  const reglages = {};
+  for (const cle of aGarder) {
+    if (config[cle] !== null && config[cle] !== undefined) reglages[cle] = config[cle];
+  }
+  fs.mkdirSync(path.dirname(cheminConfigPartagee), { recursive: true });
+  fs.writeFileSync(cheminConfigPartagee, JSON.stringify(reglages, null, 2) + '\n');
   return config;
 }
 

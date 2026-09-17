@@ -191,8 +191,17 @@ Il vous les rappelle en haut de l'écran.
 
 ## Réglages
 
-En local : `config/config.json`, créé par `npm run setup`.
-En ligne : les variables d'environnement Vercel, qui l'emportent toujours.
+Les réglages **non secrets** (site, collection, champs) vivent dans
+`config/webflow.json`, **versionné** : ils partent donc avec le code, sans rien
+à recopier dans Vercel. `npm run setup` écrit ce fichier ; il suffit ensuite de
+le commiter.
+
+Seuls les **secrets** sont des variables d'environnement : `WEBFLOW_TOKEN`,
+`ANTHROPIC_API_KEY`, `MOT_DE_PASSE`.
+
+Par ordre de priorité croissante : valeurs par défaut, `config/webflow.json`,
+`config/config.json` (surcharge locale, non versionnée), variables
+d'environnement.
 
 | Clé | Variable | Rôle |
 | --- | --- | --- |
