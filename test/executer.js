@@ -78,10 +78,44 @@ await verifier('les champs medias et references sont exclus de la lecture de fic
   assert.ok(!slugs.includes('photo-principale'));
   assert.ok(!slugs.includes('galerie'));
   assert.ok(!slugs.includes('fiche-pdf'));
-  assert.ok(!slugs.includes('notaire'), 'les references vers une autre collection ne sont pas gerees');
+  assert.ok(!slugs.includes('notaire'), 'une reference ne se lit pas dans la fiche');
+  assert.ok(!slugs.includes('quartiers'));
   assert.ok(!slugs.includes('slug'), 'le slug est calcule, pas lu dans la fiche');
   assert.ok(slugs.includes('prix') && slugs.includes('descriptif'));
-  assert.equal(structure.champsNonGeres.length, 1);
+  assert.deepEqual(structure.champsNonGeres.map((c) => c.slug), ['couleur']);
+});
+
+await verifier('les champs de reference sont isoles, avec leur collection cible', () => {
+  assert.deepEqual(
+    structure.champsReference.map((c) => [c.slug, c.type, c.validations?.collectionId]),
+    [
+      ['notaire', 'Reference', 'col2'],
+      ['quartiers', 'MultiReference', 'col2'],
+    ]
+  );
+});
+
+await verifier('les elements referencables sont listes et tries', async () => {
+  const { listerItems } = await import('../src/webflow.js');
+  const items = await listerItems('col2', 'JETON-TEST');
+  assert.deepEqual(items.map((i) => i.nom), ['Maitre Alain Bernard', 'Maitre Zoé Dupont']);
+  assert.equal(items[0].id, 'ref1');
+});
+
+await verifier("une reference choisie a l'ecran est transmise telle quelle", async () => {
+  const resultat = await publierBien({
+    fieldData: {
+      name: 'Bien avec notaire',
+      prix: 120000,
+      notaire: 'ref1',
+      quartiers: ['ref1', 'ref2'],
+    },
+    structure,
+    config,
+    publier: false,
+  });
+  assert.equal(resultat.item.fieldData.notaire, 'ref1', 'une reference est un identifiant');
+  assert.deepEqual(resultat.item.fieldData.quartiers, ['ref1', 'ref2'], 'une multi-reference est un tableau');
 });
 
 await verifier('les champs photo sont detectes automatiquement', () => {

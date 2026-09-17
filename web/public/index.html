@@ -318,7 +318,9 @@
 
     <script type="module">
       const $ = (id) => document.getElementById(id);
-      const etat = { config: null, fichiers: [], pdf: null, photos: [], champs: [] };
+      const etat = {
+        config: null, fichiers: [], pdf: null, photos: [], champs: [], references: [],
+      };
 
       const echapper = (t) =>
         String(t ?? '').replace(/[&<>"']/g, (c) =>
@@ -404,6 +406,7 @@
         }
 
         etat.champs = etat.config.champs;
+        etat.references = etat.config.champsReference ?? [];
         $('contexte').textContent =
           `Site « ${etat.config.site} » · collection « ${etat.config.collection} »`;
         if (!etat.config.lectureAuto) {
@@ -533,6 +536,12 @@
           bilan.push(
             'Pour joindre la fiche PDF, ajoutez WEBFLOW_CHAMP_FICHE_PDF avec l’un de ces slugs : '
               + reglages.champsFichier.map((c) => c.slug).join(', ')
+          );
+        }
+        if (reglages.champsReference?.length) {
+          bilan.push(
+            'Choisis dans une liste déroulante à la relecture : '
+              + reglages.champsReference.join(', ')
           );
         }
         if (reglages.champsNonGeres.length) {
@@ -702,6 +711,10 @@
         for (const champ of etat.champs) {
           formulaire.insertAdjacentHTML('beforeend', gabaritChamp(champ, lecture.fieldData[champ.slug]));
         }
+        for (const champ of etat.references) {
+          formulaire.insertAdjacentHTML('beforeend', gabaritReference(champ));
+        }
+        chargerReferences();
         $('etapeRelecture').hidden = false;
         $('etapePhotos').hidden = etat.photos.length === 0;
         $('etapeEnvoi').hidden = false;
@@ -743,12 +756,68 @@
         return `<div class="champ ${vide ? 'vide' : ''}">${libelle}${controle}</div>`;
       }
 
+      // Les références ne se lisent pas dans la fiche : elles pointent vers un
+      // élément d'une autre collection, que vous choisissez ici.
+      function gabaritReference(champ) {
+        const multiple = champ.type === 'MultiReference';
+        const libelle =
+          `<label for="c-${echapper(champ.slug)}">${echapper(champ.libelle)}`
+          + (champ.obligatoire ? '<span class="requis">*</span>' : '')
+          + '<span class="aide">à choisir — cette information ne vient pas de la fiche</span>'
+          + '</label>';
+        return `<div class="champ" data-reference="${echapper(champ.slug)}">${libelle}
+          <select id="c-${echapper(champ.slug)}" data-slug="${echapper(champ.slug)}"
+                  data-type="${echapper(champ.type)}" ${multiple ? 'multiple size="6"' : ''} disabled>
+            <option>Chargement…</option>
+          </select></div>`;
+      }
+
+      async function chargerReferences() {
+        // Deux champs peuvent viser la même collection : on ne l'interroge
+        // qu'une fois (les appels Webflow sont cadencés côté serveur).
+        const dejaVues = new Map();
+        for (const champ of etat.references) {
+          const liste = document.getElementById('c-' + champ.slug);
+          if (!liste) continue;
+          if (!champ.collectionReferencee) {
+            liste.innerHTML = '<option value="">— collection liée introuvable —</option>';
+            continue;
+          }
+          try {
+            if (!dejaVues.has(champ.collectionReferencee)) {
+              dejaVues.set(
+                champ.collectionReferencee,
+                appel('/api/references?collectionId=' + encodeURIComponent(champ.collectionReferencee))
+              );
+            }
+            const { items } = await dejaVues.get(champ.collectionReferencee);
+            const choix = items
+              .map((i) => `<option value="${echapper(i.id)}">${echapper(i.nom)}</option>`)
+              .join('');
+            liste.innerHTML =
+              (champ.type === 'MultiReference' ? '' : '<option value="">— non renseigné —</option>')
+              + choix;
+            liste.disabled = false;
+            if (!items.length) {
+              liste.innerHTML = '<option value="">— cette collection est vide —</option>';
+              liste.disabled = true;
+            }
+          } catch (erreur) {
+            if (erreur instanceof SessionExpiree) return;
+            liste.innerHTML = '<option value="">— chargement impossible —</option>';
+          }
+        }
+      }
+
       function releverFormulaire() {
         const fieldData = {};
         for (const controle of $('formulaire').querySelectorAll('[data-slug]')) {
           const slug = controle.dataset.slug;
           if (controle.dataset.type === 'Switch') {
             fieldData[slug] = controle.checked;
+          } else if (controle.dataset.type === 'MultiReference') {
+            const choisis = [...controle.selectedOptions].map((o) => o.value).filter(Boolean);
+            if (choisis.length) fieldData[slug] = choisis;
           } else if (controle.value !== '') {
             fieldData[slug] =
               controle.dataset.type === 'Number' ? Number(controle.value) : controle.value;
@@ -830,7 +899,9 @@
       async function envoyer(publier) {
         const fieldData = releverFormulaire();
 
-        const manquants = etat.champs.filter((c) => c.obligatoire && fieldData[c.slug] === undefined);
+        const manquants = [...etat.champs, ...etat.references].filter(
+          (c) => c.obligatoire && fieldData[c.slug] === undefined
+        );
         if (manquants.length) {
           const suite = confirm(
             'Champs obligatoires non renseignés :\n· '

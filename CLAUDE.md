@@ -36,7 +36,7 @@ structure actuelle.
 | `web/app.js` | routes Express, protégées par `exigerSession` ; `/api/sites`, `/api/collections` et `/api/reglages` servent l'écran de configuration |
 | `src/auth.js` | mot de passe partagé, cookie HMAC dérivé du mot de passe ; **échoue fermé** en ligne sans mot de passe |
 | `src/webflow.js` | API Webflow v2 : cadence, reprises, médias en deux temps (métadonnées Webflow puis dépôt S3, champ `file` en dernier) |
-| `src/schema.js` | collection Webflow → schéma JSON → `fieldData` |
+| `src/schema.js` | collection Webflow → schéma JSON → `fieldData` ; isole `champsReference` (listes déroulantes) de `champsNonGeres` |
 | `src/extraction.js` | lecture de la fiche PDF via l'API Claude (document base64) |
 | `src/photos.js` | sharp : redressement, redimensionnement, JPEG, EXIF supprimés |
 | `src/pipeline.js` | les quatre étapes, indépendantes ; `publierBien` les chaîne pour la CLI |
@@ -76,6 +76,9 @@ pas hors d'un vrai navigateur.
   `/api/slug`, appelé avant le premier envoi de photo.
 - Dans le faux serveur S3, `filename="…"` contient `name="` : la vérification
   des champs multipart exige un préfixe.
+- Une référence s'écrit comme l'identifiant de l'élément (`"65c…"`), une
+  multi-référence comme un tableau d'identifiants. La collection visée se lit
+  dans `validations.collectionId`.
 - `exigerSession` échoue **fermé** (503) quand `surVercel && !protectionActive()`.
   Ne pas assouplir : sur Vercel une variable ajoutée après coup n'est prise en
   compte qu'au déploiement suivant, et le fail-open serait silencieux.

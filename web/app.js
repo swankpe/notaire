@@ -16,7 +16,7 @@ import {
   surVercel,
   configPourVercel,
 } from '../src/config.js';
-import { listerSites, listerCollections, lireCollection } from '../src/webflow.js';
+import { listerSites, listerCollections, lireCollection, listerItems } from '../src/webflow.js';
 import { analyserCollection, choisirChampImage, choisirChampGalerie } from '../src/schema.js';
 import {
   chargerStructure,
@@ -118,8 +118,23 @@ export function creerApplication() {
         aide: c.helpText ?? null,
         options: (c.validations?.options ?? []).map((o) => o.name),
       })),
+      // Champs pointant vers une autre collection : l'ecran propose une liste
+      // deroulante, chargee a part pour ne pas ralentir l'ouverture.
+      champsReference: structure.champsReference.map((c) => ({
+        slug: c.slug,
+        libelle: c.displayName,
+        type: c.type,
+        obligatoire: Boolean(c.isRequired),
+        collectionReferencee: c.validations?.collectionId ?? null,
+      })),
       champsNonGeres: structure.champsNonGeres.map((c) => c.displayName),
     });
+  });
+
+  app.get('/api/references', async (requete, reponse) => {
+    const { collectionId } = requete.query;
+    if (!collectionId) return reponse.status(400).json({ erreur: 'Collection manquante.' });
+    reponse.json({ items: await listerItems(collectionId, jetonWebflow()) });
   });
 
   // ── Configuration initiale (tant qu'aucune collection n'est choisie) ────
@@ -159,6 +174,7 @@ export function creerApplication() {
       champImage: champImage ? { slug: champImage.slug, libelle: champImage.displayName } : null,
       champGalerie: champGalerie ? { slug: champGalerie.slug, libelle: champGalerie.displayName } : null,
       champsFichier: structure.champsFichier.map((c) => ({ slug: c.slug, libelle: c.displayName })),
+      champsReference: structure.champsReference.map((c) => c.displayName),
       champsNonGeres: structure.champsNonGeres.map((c) => c.displayName),
       nombreChamps: structure.champsExtraits.length,
       variables: configPourVercel({

@@ -134,7 +134,36 @@ await verifier('la configuration vient des variables d\'environnement', async ()
   const slugs = config.champs.map((c) => c.slug);
   assert.ok(slugs.includes('prix'));
   assert.ok(!slugs.includes('galerie'), 'les champs photos ne sont pas des champs de formulaire');
-  assert.deepEqual(config.champsNonGeres, ['Notaire']);
+  assert.ok(!slugs.includes('notaire'), 'les references ont leur propre liste');
+  assert.deepEqual(config.champsNonGeres, ['Couleur']);
+  assert.deepEqual(config.champsReference, [
+    {
+      slug: 'notaire',
+      libelle: 'Notaire',
+      type: 'Reference',
+      obligatoire: false,
+      collectionReferencee: 'col2',
+    },
+    {
+      slug: 'quartiers',
+      libelle: 'Quartiers',
+      type: 'MultiReference',
+      obligatoire: false,
+      collectionReferencee: 'col2',
+    },
+  ]);
+});
+
+await verifier('les listes deroulantes de reference sont alimentees', async () => {
+  const { statut, corps } = await appel('/api/references?collectionId=col2');
+  assert.equal(statut, 200);
+  assert.deepEqual(corps.items, [
+    { id: 'ref1', nom: 'Maitre Alain Bernard' },
+    { id: 'ref2', nom: 'Maitre Zoé Dupont' },
+  ]);
+
+  const sansCollection = await appel('/api/references');
+  assert.equal(sansCollection.statut, 400);
 });
 
 await verifier('la page se charge', async () => {
@@ -228,6 +257,7 @@ await verifier('l\'annonce est creee en brouillon, photos dans l\'ordre choisi',
         prix: 285000,
         commune: 'Saint-Brieuc',
         'type-de-bien': 'Maison',
+        notaire: 'ref1',
       },
       slug,
       medias,
@@ -246,6 +276,7 @@ await verifier('l\'annonce est creee en brouillon, photos dans l\'ordre choisi',
   assert.equal(item.fieldData['photo-principale'].url, item.fieldData.galerie[0].url);
   assert.match(item.fieldData['photo-principale'].url, /-01\.jpg$/);
   assert.ok(item.fieldData['fiche-pdf'].url.endsWith('.pdf'));
+  assert.equal(item.fieldData.notaire, 'ref1', "la reference choisie a l'ecran est enregistree");
 });
 
 await verifier('aucun etat serveur n\'est necessaire entre les etapes', async () => {
@@ -351,14 +382,20 @@ await verifier('sans collection choisie, l\'outil bascule en configuration', asy
     assert.equal(variables.WEBFLOW_CHAMP_GALERIE, 'galerie');
     assert.ok(!('MODELE' in variables), 'le modele par defaut ne doit pas encombrer la liste');
     assert.deepEqual(reglages.corps.champsFichier, [{ slug: 'fiche-pdf', libelle: 'Fiche PDF' }]);
-    assert.deepEqual(reglages.corps.champsNonGeres, ['Notaire']);
+    assert.deepEqual(reglages.corps.champsReference, ['Notaire', 'Quartiers']);
+    assert.deepEqual(reglages.corps.champsNonGeres, ['Couleur']);
   } finally {
     nu.kill();
   }
 });
 
 await verifier('les routes de configuration sont aussi fermees sans session', async () => {
-  for (const chemin of ['/api/sites', '/api/collections?siteId=site1', '/api/reglages']) {
+  for (const chemin of [
+    '/api/sites',
+    '/api/collections?siteId=site1',
+    '/api/reglages',
+    '/api/references?collectionId=col2',
+  ]) {
     const reponse = await fetch(BASE + chemin);
     assert.equal(reponse.status, 401, chemin + ' devrait etre ferme');
   }

@@ -180,6 +180,31 @@ export async function chercherItemParSlug(collectionId, slug, jeton) {
   return null;
 }
 
+/**
+ * Liste les elements d'une collection, pour alimenter une liste deroulante de
+ * champ « Reference ». On s'arrete a 500 : au-dela, une liste deroulante n'est
+ * de toute facon plus le bon outil.
+ */
+export async function listerItems(collectionId, jeton) {
+  const trouves = [];
+  for (let page = 0; page < 5; page++) {
+    const lot = await requete(
+      `/collections/${collectionId}/items?limit=100&offset=${page * 100}`,
+      { jeton }
+    );
+    const items = lot?.items ?? [];
+    for (const item of items) {
+      trouves.push({
+        id: item.id,
+        nom: item.fieldData?.name ?? item.fieldData?.slug ?? item.id,
+      });
+    }
+    if (items.length < 100) break;
+  }
+  const collateur = new Intl.Collator('fr', { numeric: true, sensitivity: 'base' });
+  return trouves.sort((a, b) => collateur.compare(a.nom, b.nom));
+}
+
 // ── Medias ────────────────────────────────────────────────────────────────
 
 /**

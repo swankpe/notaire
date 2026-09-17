@@ -180,12 +180,14 @@ en local (`npm start`) reste gratuit et strictement équivalent.
 | *Galerie* (*MultiImage*) | toutes les photos, dans l'ordre choisi à l'écran |
 | *Fichier* | la fiche PDF, si vous l'activez (voir plus bas) |
 | *Slug* | calculé à partir du titre |
-| *Référence* vers une autre collection, *Couleur* | **non gérés** : à renseigner dans Webflow |
+| *Référence* / *Multi-référence* | **liste déroulante** à la relecture, alimentée par les éléments de la collection visée — ces valeurs ne se lisent pas dans la fiche |
+| *Couleur* | **non géré** : à renseigner dans Webflow |
 
-Les champs *Référence* (par exemple « notaire en charge du dossier » ou
-« commune » pointant vers une autre collection) demandent de choisir un élément
-existant : c'est un geste éditorial, l'outil ne le fait pas à votre place.
-Il vous les rappelle en haut de l'écran.
+Les champs *Référence* (« ville », « office en charge du dossier »…) demandent
+de choisir un élément existant dans une autre collection : c'est un geste
+éditorial, l'outil ne devine pas à votre place. Il affiche donc une liste
+déroulante en bas de l'écran de relecture, avec les éléments de la collection
+visée, triés par nom. Une multi-référence devient une liste à choix multiples.
 
 ---
 

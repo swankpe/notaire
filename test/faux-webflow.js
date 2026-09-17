@@ -66,14 +66,29 @@ export function demarrerFauxWebflow(port = 4599) {
         { id: 'f11', slug: 'photo-principale', displayName: 'Photo principale', type: 'Image', isRequired: false },
         { id: 'f12', slug: 'galerie', displayName: 'Galerie', type: 'MultiImage', isRequired: false },
         { id: 'f13', slug: 'fiche-pdf', displayName: 'Fiche PDF', type: 'File', isRequired: false },
-        { id: 'f14', slug: 'notaire', displayName: 'Notaire', type: 'Reference', isRequired: false },
+        {
+          id: 'f14', slug: 'notaire', displayName: 'Notaire', type: 'Reference', isRequired: false,
+          validations: { collectionId: 'col2' },
+        },
+        {
+          id: 'f15', slug: 'quartiers', displayName: 'Quartiers', type: 'MultiReference',
+          isRequired: false, validations: { collectionId: 'col2' },
+        },
+        { id: 'f16', slug: 'couleur', displayName: 'Couleur', type: 'Color', isRequired: false },
       ],
     })
   );
 
-  app.get('/v2/collections/:id/items', (requete, reponse) =>
-    reponse.json({ items, pagination: { total: items.length } })
-  );
+  // La collection referencee par « notaire » et « quartiers ».
+  const referencables = [
+    { id: 'ref2', fieldData: { name: 'Maitre Zoé Dupont', slug: 'zoe-dupont' } },
+    { id: 'ref1', fieldData: { name: 'Maitre Alain Bernard', slug: 'alain-bernard' } },
+  ];
+
+  app.get('/v2/collections/:id/items', (requete, reponse) => {
+    const lot = requete.params.id === 'col2' ? referencables : items;
+    reponse.json({ items: lot, pagination: { total: lot.length } });
+  });
 
   app.post('/v2/sites/:site/assets', (requete, reponse) => {
     const { fileName, fileHash } = requete.body;

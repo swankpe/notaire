@@ -4,7 +4,10 @@
 // Champs remplis automatiquement par l'outil (photos, fiche PDF, slug) ou non
 // gerables depuis une fiche papier : on ne les demande pas a Claude.
 const TYPES_MEDIA = new Set(['Image', 'MultiImage', 'File', 'ExtFileRef']);
-const TYPES_IGNORES = new Set(['Reference', 'MultiReference', 'Color', 'User', 'SkuValues']);
+// Les references pointent vers une autre collection : on ne les lit pas dans la
+// fiche, on les fait choisir a l'ecran parmi les elements existants.
+const TYPES_REFERENCE = new Set(['Reference', 'MultiReference']);
+const TYPES_IGNORES = new Set(['Color', 'User', 'SkuValues']);
 const SLUGS_IGNORES = new Set(['slug', '_archived', '_draft']);
 
 export function analyserCollection(collection) {
@@ -18,8 +21,13 @@ export function analyserCollection(collection) {
     champsGalerie: champs.filter((c) => c.type === 'MultiImage'),
     champsFichier: champs.filter((c) => c.type === 'File'),
     champsExtraits: champs.filter(
-      (c) => !TYPES_MEDIA.has(c.type) && !TYPES_IGNORES.has(c.type) && !SLUGS_IGNORES.has(c.slug)
+      (c) =>
+        !TYPES_MEDIA.has(c.type) &&
+        !TYPES_IGNORES.has(c.type) &&
+        !TYPES_REFERENCE.has(c.type) &&
+        !SLUGS_IGNORES.has(c.slug)
     ),
+    champsReference: champs.filter((c) => TYPES_REFERENCE.has(c.type)),
     champsNonGeres: champs.filter((c) => TYPES_IGNORES.has(c.type)),
   };
 }
