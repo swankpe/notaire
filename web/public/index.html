@@ -192,6 +192,16 @@
         margin: 14px 0 8px;
       }
       .jauge div { height: 100%; background: var(--accent); width: 0; transition: width 0.2s; }
+      .variables {
+        font: 12.5px/1.8 ui-monospace, SFMono-Regular, Menlo, monospace;
+        background: var(--encre);
+        color: #e8edf3;
+        border-radius: 8px;
+        padding: 14px 16px;
+        margin: 12px 0;
+        white-space: pre;
+        overflow-x: auto;
+      }
       .journal {
         font: 12.5px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
         color: var(--encre-doux);
@@ -238,6 +248,30 @@
 
       <div id="application" hidden>
         <div id="alerteGlobale"></div>
+
+        <section id="configuration" hidden>
+          <h2>Configuration <span class="libre">— à faire une fois</span></h2>
+          <div id="avisConfig"></div>
+          <div id="choixConfig">
+            <div class="champ">
+              <label for="choixSite">Site Webflow</label>
+              <select id="choixSite"><option>Chargement…</option></select>
+            </div>
+            <div class="champ">
+              <label for="choixCollection">Collection contenant les biens à vendre</label>
+              <select id="choixCollection" disabled>
+                <option>Choisissez d'abord un site</option>
+              </select>
+            </div>
+            <div class="barre-actions">
+              <span class="note" id="noteConfig"></span>
+              <button class="principal" id="boutonReglages" disabled>
+                Voir les variables à créer
+              </button>
+            </div>
+          </div>
+          <div id="resultatConfig"></div>
+        </section>
 
         <section id="etapeDepot">
           <h2>1 · Fiche et photos</h2>
@@ -365,12 +399,8 @@
 
         etat.config = await appel('/api/config');
         if (!etat.config.configure) {
-          $('contexte').textContent = 'Aucune collection configurée.';
-          avis($('alerteGlobale'), 'erreur', 'Configuration manquante', [
-            'Renseignez WEBFLOW_SITE_ID et WEBFLOW_COLLECTION_ID, ou lancez « npm run setup » en local.',
-          ]);
-          $('etapeDepot').hidden = true;
-          return;
+          $('contexte').textContent = 'Configuration à terminer';
+          return montrerConfiguration(etat.config);
         }
 
         etat.champs = etat.config.champs;
@@ -395,6 +425,140 @@
           $('contexte').textContent = 'Erreur.';
           avis($('alerteGlobale'), 'erreur', erreur.message);
         }
+      }
+
+      // ── Configuration initiale ────────────────────────────────────────
+      async function montrerConfiguration(config) {
+        $('configuration').hidden = false;
+        $('etapeDepot').hidden = true;
+
+        if (!config.jetonPresent) {
+          $('choixConfig').hidden = true;
+          avis($('avisConfig'), 'erreur', 'WEBFLOW_TOKEN manquante', [
+            "Ajoutez-la dans Vercel (Settings → Environment Variables), puis redéployez : "
+              + "sans elle, impossible de lister vos sites.",
+          ]);
+          return;
+        }
+        if (!config.lectureAuto) {
+          avis($('avisConfig'), 'alerte', 'ANTHROPIC_API_KEY manquante', [
+            'La lecture automatique des fiches sera désactivée. À ajouter aussi, tant que vous y êtes.',
+          ]);
+        }
+
+        try {
+          const { sites } = await appel('/api/sites');
+          $('choixSite').innerHTML =
+            '<option value="">— choisissez —</option>'
+            + sites
+                .map((s) => `<option value="${echapper(s.id)}">${echapper(s.nom)}</option>`)
+                .join('');
+        } catch (erreur) {
+          $('choixConfig').hidden = true;
+          return avis($('avisConfig'), 'erreur', 'Webflow a refusé la demande', [erreur.message]);
+        }
+      }
+
+      $('choixSite').addEventListener('change', async (ev) => {
+        const siteId = ev.target.value;
+        const liste = $('choixCollection');
+        $('boutonReglages').disabled = true;
+        $('resultatConfig').innerHTML = '';
+        if (!siteId) {
+          liste.disabled = true;
+          liste.innerHTML = "<option>Choisissez d'abord un site</option>";
+          return;
+        }
+        liste.disabled = true;
+        liste.innerHTML = '<option>Chargement…</option>';
+        try {
+          const { collections } = await appel(
+            '/api/collections?siteId=' + encodeURIComponent(siteId)
+          );
+          if (!collections.length) {
+            liste.innerHTML = '<option>Aucune collection sur ce site</option>';
+            return;
+          }
+          liste.innerHTML =
+            '<option value="">— choisissez —</option>'
+            + collections
+                .map((c) => `<option value="${echapper(c.id)}">${echapper(c.nom)}</option>`)
+                .join('');
+          liste.disabled = false;
+        } catch (erreur) {
+          liste.innerHTML = '<option>Erreur</option>';
+          avis($('avisConfig'), 'erreur', 'Lecture des collections impossible', [erreur.message]);
+        }
+      });
+
+      $('choixCollection').addEventListener('change', (ev) => {
+        $('boutonReglages').disabled = !ev.target.value;
+        $('resultatConfig').innerHTML = '';
+      });
+
+      $('boutonReglages').addEventListener('click', async () => {
+        const site = $('choixSite');
+        const collectionId = $('choixCollection').value;
+        $('boutonReglages').disabled = true;
+        $('noteConfig').innerHTML =
+          '<span class="chargement"><span class="rond"></span>Lecture de la collection…</span>';
+
+        try {
+          const reglages = await appel(
+            '/api/reglages?siteId=' + encodeURIComponent(site.value)
+              + '&siteNom=' + encodeURIComponent(site.options[site.selectedIndex].text)
+              + '&collectionId=' + encodeURIComponent(collectionId)
+          );
+          afficherReglages(reglages);
+        } catch (erreur) {
+          avis($('resultatConfig'), 'erreur', 'Lecture impossible', [erreur.message]);
+        } finally {
+          $('noteConfig').textContent = '';
+          $('boutonReglages').disabled = false;
+        }
+      });
+
+      function afficherReglages(reglages) {
+        const texte = reglages.variables.map(([nom, valeur]) => `${nom}=${valeur}`).join('\n');
+        const bilan = [
+          `${reglages.nombreChamps} champ(s) seront lus dans la fiche.`,
+          reglages.champImage
+            ? `Photo principale : « ${reglages.champImage.libelle} ».`
+            : 'Aucun champ Image trouvé : les photos n’auront pas de visuel principal.',
+          reglages.champGalerie
+            ? `Galerie : « ${reglages.champGalerie.libelle} ».`
+            : 'Aucun champ Galerie trouvé : seule la première photo sera utilisée.',
+        ];
+        if (reglages.champsFichier.length) {
+          bilan.push(
+            'Pour joindre la fiche PDF, ajoutez WEBFLOW_CHAMP_FICHE_PDF avec l’un de ces slugs : '
+              + reglages.champsFichier.map((c) => c.slug).join(', ')
+          );
+        }
+        if (reglages.champsNonGeres.length) {
+          bilan.push(
+            'À renseigner dans Webflow, l’outil ne les gère pas : '
+              + reglages.champsNonGeres.join(', ')
+          );
+        }
+
+        $('resultatConfig').innerHTML = '';
+        avis($('resultatConfig'), 'ok', `Collection « ${reglages.collection} »`, bilan);
+        $('resultatConfig').insertAdjacentHTML(
+          'beforeend',
+          `<p style="font-size:13.5px">Créez ces variables dans Vercel
+             <em>(Settings → Environment Variables)</em>, puis <strong>redéployez</strong> :</p>
+           <div class="variables">${echapper(texte)}</div>
+           <button class="secondaire" id="boutonCopier">Copier</button>`
+        );
+        $('boutonCopier').addEventListener('click', async (ev) => {
+          try {
+            await navigator.clipboard.writeText(texte);
+            ev.target.textContent = 'Copié';
+          } catch {
+            ev.target.textContent = 'Copie impossible — sélectionnez le texte';
+          }
+        });
       }
 
       // ── Étape 1 : dépôt ───────────────────────────────────────────────

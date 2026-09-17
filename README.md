@@ -140,6 +140,12 @@ d'environnement qui font foi.
 
 4. Redéployez, ouvrez l'adresse, saisissez le mot de passe.
 
+**Sans passer par le terminal.** Si vous ne voulez rien installer en local,
+déployez avec `MOT_DE_PASSE`, `WEBFLOW_TOKEN` et `ANTHROPIC_API_KEY`
+seulement. À la connexion, l'outil affiche un **écran de configuration** :
+il liste vos sites et vos collections Webflow, vous choisissez, et il vous
+donne les variables restantes à coller — puis un dernier redéploiement.
+
 ### Ce que la mise en ligne change au fonctionnement
 
 Trois contraintes de Vercel ont dicté la conception ; elles sont invisibles à

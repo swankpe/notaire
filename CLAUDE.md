@@ -25,7 +25,7 @@ structure actuelle.
 | --- | --- |
 | 4,5 Mo par requête | Photos réduites côté navigateur (canvas), envoyées **une par une** via `/api/media`. La fiche PDF part seule. |
 | Pas de mémoire entre requêtes | Le navigateur garde les fichiers ; chaque route est autonome. Ne jamais réintroduire un cache de session côté serveur. |
-| Disque en lecture seule | `lireConfig()` lit les variables d'environnement, qui l'emportent sur `config/config.json`. |
+| Disque en lecture seule | `lireConfig()` lit les variables d'environnement, qui l'emportent sur `config/config.json`. L'écran de configuration ne peut donc rien **enregistrer** : il affiche les variables à recopier dans Vercel. |
 | Détection du point d'entrée | `server.js` doit rester **à la racine** : c'est ainsi que Vercel capture le serveur. |
 
 ## Architecture
@@ -33,7 +33,7 @@ structure actuelle.
 | Fichier | Rôle |
 | --- | --- |
 | `server.js` | point d'entrée unique (local et Vercel) |
-| `web/app.js` | routes Express, protégées par `exigerSession` |
+| `web/app.js` | routes Express, protégées par `exigerSession` ; `/api/sites`, `/api/collections` et `/api/reglages` servent l'écran de configuration |
 | `src/auth.js` | mot de passe partagé, cookie HMAC dérivé du mot de passe ; **échoue fermé** en ligne sans mot de passe |
 | `src/webflow.js` | API Webflow v2 : cadence, reprises, médias en deux temps (métadonnées Webflow puis dépôt S3, champ `file` en dernier) |
 | `src/schema.js` | collection Webflow → schéma JSON → `fieldData` |

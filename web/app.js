@@ -8,7 +8,16 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
 import multer from 'multer';
-import { lireConfig, jetonWebflow, cleAnthropic, surVercel } from '../src/config.js';
+import {
+  lireConfig,
+  jetonWebflow,
+  jetonWebflowOptionnel,
+  cleAnthropic,
+  surVercel,
+  configPourVercel,
+} from '../src/config.js';
+import { listerSites, listerCollections, lireCollection } from '../src/webflow.js';
+import { analyserCollection, choisirChampImage, choisirChampGalerie } from '../src/schema.js';
 import {
   chargerStructure,
   lireLaFiche,
@@ -84,7 +93,13 @@ export function creerApplication() {
 
   app.get('/api/config', async (requete, reponse) => {
     const config = lireConfig();
-    if (!config.collectionId) return reponse.json({ configure: false });
+    if (!config.collectionId) {
+      return reponse.json({
+        configure: false,
+        jetonPresent: Boolean(jetonWebflowOptionnel()),
+        lectureAuto: Boolean(cleAnthropic()),
+      });
+    }
 
     const structure = await chargerStructure(config, jetonWebflow());
     reponse.json({
@@ -104,6 +119,59 @@ export function creerApplication() {
         options: (c.validations?.options ?? []).map((o) => o.name),
       })),
       champsNonGeres: structure.champsNonGeres.map((c) => c.displayName),
+    });
+  });
+
+  // ── Configuration initiale (tant qu'aucune collection n'est choisie) ────
+  //
+  // Sur Vercel le disque est en lecture seule : ces routes ne peuvent rien
+  // enregistrer. Elles servent a choisir le site et la collection, puis a
+  // afficher les variables d'environnement a recopier dans Vercel.
+
+  app.get('/api/sites', async (requete, reponse) => {
+    const sites = await listerSites(jetonWebflow());
+    reponse.json({
+      sites: sites.map((s) => ({ id: s.id, nom: s.displayName, raccourci: s.shortName ?? null })),
+    });
+  });
+
+  app.get('/api/collections', async (requete, reponse) => {
+    const { siteId } = requete.query;
+    if (!siteId) return reponse.status(400).json({ erreur: 'Site manquant.' });
+    const collections = await listerCollections(siteId, jetonWebflow());
+    reponse.json({
+      collections: collections.map((c) => ({ id: c.id, nom: c.displayName, slug: c.slug })),
+    });
+  });
+
+  app.get('/api/reglages', async (requete, reponse) => {
+    const { siteId, siteNom, collectionId } = requete.query;
+    if (!siteId || !collectionId) {
+      return reponse.status(400).json({ erreur: 'Site ou collection manquant.' });
+    }
+
+    const structure = analyserCollection(await lireCollection(collectionId, jetonWebflow()));
+    const champImage = choisirChampImage(structure, null);
+    const champGalerie = choisirChampGalerie(structure, null);
+
+    reponse.json({
+      collection: structure.nom,
+      champImage: champImage ? { slug: champImage.slug, libelle: champImage.displayName } : null,
+      champGalerie: champGalerie ? { slug: champGalerie.slug, libelle: champGalerie.displayName } : null,
+      champsFichier: structure.champsFichier.map((c) => ({ slug: c.slug, libelle: c.displayName })),
+      champsNonGeres: structure.champsNonGeres.map((c) => c.displayName),
+      nombreChamps: structure.champsExtraits.length,
+      variables: configPourVercel({
+        siteId,
+        siteNom: siteNom || null,
+        collectionId,
+        collectionNom: structure.nom,
+        champImagePrincipale: champImage?.slug ?? null,
+        champGalerie: champGalerie?.slug ?? null,
+        champFichePdf: null,
+        consignes: '',
+        modele: null,
+      }),
     });
   });
 

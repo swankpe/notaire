@@ -92,8 +92,13 @@ export function configPourVercel(config) {
   return lignes;
 }
 
+/** Le jeton s'il est present, sans lever d'erreur : sert a l'ecran de configuration. */
+export function jetonWebflowOptionnel() {
+  return process.env.WEBFLOW_TOKEN?.trim() || null;
+}
+
 export function jetonWebflow() {
-  const jeton = process.env.WEBFLOW_TOKEN?.trim();
+  const jeton = jetonWebflowOptionnel();
   if (!jeton) {
     throw new Error(
       surVercel

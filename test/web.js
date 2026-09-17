@@ -267,6 +267,93 @@ await verifier('la deconnexion ferme la session', async () => {
   assert.equal(statut, 401);
 });
 
+console.log('\nEcran de configuration');
+
+await verifier('sans collection choisie, l\'outil bascule en configuration', async () => {
+  const nu = spawn(process.execPath, [path.join(racine, 'server.js')], {
+    env: {
+      ...process.env,
+      PORT: '4593',
+      WEBFLOW_TOKEN: 'JETON-TEST',
+      WEBFLOW_API_BASE: faux.base,
+      WEBFLOW_SITE_ID: '',
+      WEBFLOW_COLLECTION_ID: '',
+      MOT_DE_PASSE,
+      ANTHROPIC_API_KEY: '',
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+
+  const base = 'http://127.0.0.1:4593';
+  let biscuit = '';
+  const joindre = async (chemin, options = {}) => {
+    const r = await fetch(base + chemin, {
+      ...options,
+      headers: { ...(options.headers ?? {}), ...(biscuit ? { cookie: biscuit } : {}) },
+    });
+    const pose = r.headers.get('set-cookie');
+    if (pose) biscuit = pose.split(';')[0];
+    return { statut: r.status, corps: await r.json().catch(() => ({})) };
+  };
+
+  try {
+    let pret = false;
+    for (let i = 0; i < 60 && !pret; i++) {
+      try {
+        pret = (await fetch(base + '/api/session')).ok;
+      } catch {}
+      if (!pret) await new Promise((r) => setTimeout(r, 250));
+    }
+    assert.ok(pret, "le serveur de configuration n'a pas demarre");
+
+    await joindre('/api/connexion', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ motDePasse: MOT_DE_PASSE }),
+    });
+
+    const config = await joindre('/api/config');
+    assert.equal(config.corps.configure, false);
+    assert.equal(config.corps.jetonPresent, true, 'le jeton doit etre signale present');
+
+    const sites = await joindre('/api/sites');
+    assert.equal(sites.statut, 200);
+    assert.deepEqual(sites.corps.sites, [
+      { id: 'site1', nom: 'Etude de Saint-Brieuc', raccourci: 'etude' },
+    ]);
+
+    const collections = await joindre('/api/collections?siteId=site1');
+    assert.equal(collections.statut, 200);
+    assert.equal(collections.corps.collections[0].id, 'col1');
+
+    const sansSite = await joindre('/api/collections');
+    assert.equal(sansSite.statut, 400);
+
+    const reglages = await joindre(
+      '/api/reglages?siteId=site1&siteNom=Etude%20de%20Saint-Brieuc&collectionId=col1'
+    );
+    assert.equal(reglages.statut, 200);
+    const variables = Object.fromEntries(reglages.corps.variables);
+    assert.equal(variables.WEBFLOW_SITE_ID, 'site1');
+    assert.equal(variables.WEBFLOW_COLLECTION_ID, 'col1');
+    assert.equal(variables.WEBFLOW_COLLECTION_NOM, 'Biens a vendre');
+    assert.equal(variables.WEBFLOW_CHAMP_IMAGE, 'photo-principale');
+    assert.equal(variables.WEBFLOW_CHAMP_GALERIE, 'galerie');
+    assert.ok(!('MODELE' in variables), 'le modele par defaut ne doit pas encombrer la liste');
+    assert.deepEqual(reglages.corps.champsFichier, [{ slug: 'fiche-pdf', libelle: 'Fiche PDF' }]);
+    assert.deepEqual(reglages.corps.champsNonGeres, ['Notaire']);
+  } finally {
+    nu.kill();
+  }
+});
+
+await verifier('les routes de configuration sont aussi fermees sans session', async () => {
+  for (const chemin of ['/api/sites', '/api/collections?siteId=site1', '/api/reglages']) {
+    const reponse = await fetch(BASE + chemin);
+    assert.equal(reponse.status, 401, chemin + ' devrait etre ferme');
+  }
+});
+
 console.log('\nGarde-fou en ligne');
 
 await verifier('en ligne sans mot de passe, l\'outil refuse de servir', async () => {
