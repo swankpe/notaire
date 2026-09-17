@@ -1,10 +1,17 @@
 // Point d'entree unique : en local (npm start) comme sur Vercel, qui detecte
 // automatiquement un server.js a la racine et route les requetes vers lui.
+//
+// Vercel reconnait le serveur en cherchant un point d'entree qui importe
+// express *lui-meme* : il ne suit pas l'indirection vers web/app.js. D'ou le
+// montage explicite ci-dessous, et non un simple reexport de l'application.
+import express from 'express';
 import { creerApplication } from './web/app.js';
 import { lireConfig, cleAnthropic, racine, surVercel } from './src/config.js';
 import { alerteConfiguration } from './src/auth.js';
 
-const app = creerApplication();
+const app = express();
+app.use(creerApplication());
+
 const port = Number(process.env.PORT) || 4000;
 
 app.listen(port, surVercel ? undefined : '127.0.0.1', () => {
