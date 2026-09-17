@@ -10,6 +10,7 @@ import { lireConfig, cleAnthropic, racine, surVercel } from './src/config.js';
 import { alerteConfiguration } from './src/auth.js';
 
 const app = express();
+app.disable('x-powered-by'); // l'application montee le fait deja pour elle-meme
 app.use(creerApplication());
 
 const port = Number(process.env.PORT) || 4000;
