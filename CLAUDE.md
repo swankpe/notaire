@@ -37,6 +37,7 @@ structure actuelle.
 | `src/auth.js` | mot de passe partagé, cookie HMAC dérivé du mot de passe ; **échoue fermé** en ligne sans mot de passe |
 | `src/webflow.js` | API Webflow v2 : cadence, reprises, médias en deux temps (métadonnées Webflow puis dépôt S3, champ `file` en dernier) |
 | `src/schema.js` | collection Webflow → schéma JSON → `fieldData` ; isole `champsReference` (listes déroulantes) de `champsNonGeres` |
+| `src/claude.js` | client Claude partagé : en-tête `anthropic-workspace-id`, traduction des erreurs d'API |
 | `src/extraction.js` | lecture de la fiche PDF via l'API Claude (document base64) |
 | `src/publication.js` | rédaction du post Facebook ; le style vient de `config/publication.json`, versionné |
 | `src/photos.js` | sharp : redressement, redimensionnement, JPEG, EXIF supprimés |
@@ -80,6 +81,9 @@ pas hors d'un vrai navigateur.
 - Une référence s'écrit comme l'identifiant de l'élément (`"65c…"`), une
   multi-référence comme un tableau d'identifiants. La collection visée se lit
   dans `validations.collectionId`.
+- Une clé Anthropic non rattachée à un espace de travail fait répondre `400`
+  à l'API. `src/claude.js` transmet `ANTHROPIC_WORKSPACE_ID` quand la variable
+  existe, et traduit l'erreur en conseil plutôt que de la laisser brute.
 - Le style des posts Facebook tient dans les **exemples** de
   `config/publication.json`, pas dans les consignes. Pour corriger un ton qui
   dérive, ajouter un bon post plutôt que réécrire les règles.

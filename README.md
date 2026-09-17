@@ -44,8 +44,15 @@ API access → Generate API token*. Cochez les portées :
 | `assets:read` et `assets:write` | envoyer les photos dans la bibliothèque |
 
 **`ANTHROPIC_API_KEY`** — sur <https://console.anthropic.com/settings/keys>.
-C'est elle qui permet la lecture automatique des fiches. Sans elle l'outil
-fonctionne quand même, mais les champs sont à saisir à la main.
+C'est elle qui permet la lecture automatique des fiches et la rédaction des
+posts. Sans elle l'outil fonctionne quand même, mais les champs sont à saisir
+à la main.
+
+> **Créez-la depuis un espace de travail.** Une clé non rattachée à un espace
+> fait répondre `400` à l'API, avec le message *« This API key is not scoped to
+> a workspace »* — les deux fonctions IA tombent alors ensemble. Si vous tenez
+> à garder une clé non rattachée, renseignez `ANTHROPIC_WORKSPACE_ID` avec
+> l'identifiant de l'espace : l'outil transmet alors l'en-tête attendu.
 
 Puis, une fois :
 

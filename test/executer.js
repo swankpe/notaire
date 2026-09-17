@@ -378,6 +378,34 @@ await verifier('un jeton invalide donne un message comprehensible', async () => 
   process.env.WEBFLOW_TOKEN = 'JETON-TEST';
 });
 
+console.log('\nClient Claude');
+
+const claude = await import('../src/claude.js');
+
+await verifier("l'espace de travail se transmet en en-tete quand il est defini", () => {
+  process.env.ANTHROPIC_API_KEY = 'sk-test';
+  delete process.env.ANTHROPIC_WORKSPACE_ID;
+  assert.equal(claude.espaceDeTravail(), null);
+
+  process.env.ANTHROPIC_WORKSPACE_ID = 'wrkspc_123';
+  assert.equal(claude.espaceDeTravail(), 'wrkspc_123');
+  const client = claude.clientClaude('un test');
+  assert.equal(client._options.defaultHeaders['anthropic-workspace-id'], 'wrkspc_123');
+
+  delete process.env.ANTHROPIC_WORKSPACE_ID;
+  delete process.env.ANTHROPIC_API_KEY;
+});
+
+await verifier('les erreurs de l API sont traduites en conseils actionnables', () => {
+  assert.match(
+    claude.messageClaude(new Error('This API key is not scoped to a workspace')),
+    /ANTHROPIC_WORKSPACE_ID/
+  );
+  assert.match(claude.messageClaude(new Error('credit balance is too low')), /crédit/i);
+  assert.match(claude.messageClaude(new Error('rate_limit_error')), /Patientez/);
+  assert.equal(claude.messageClaude(new Error('panne inconnue')), 'panne inconnue');
+});
+
 console.log('\nPublication Facebook');
 
 const publication = await import('../src/publication.js');

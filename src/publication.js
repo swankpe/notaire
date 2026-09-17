@@ -6,8 +6,8 @@
 // regles.
 import fs from 'node:fs';
 import path from 'node:path';
-import Anthropic from '@anthropic-ai/sdk';
-import { racine, cleAnthropic } from './config.js';
+import { racine } from './config.js';
+import { clientClaude, messageClaude } from './claude.js';
 
 const cheminStyle = path.join(racine, 'config', 'publication.json');
 
@@ -77,14 +77,7 @@ export function lienDuBien(style, item) {
  * @returns {Promise<{texte: string, remarques: string[]}>}
  */
 export async function redigerPublication({ structure, item, style, modele }) {
-  const cle = cleAnthropic();
-  if (!cle) {
-    throw new Error(
-      'ANTHROPIC_API_KEY absente : la rédaction automatique est désactivée.'
-    );
-  }
-
-  const client = new Anthropic({ apiKey: cle });
+  const client = clientClaude('la rédaction automatique');
   const lien = lienDuBien(style, item);
 
   const exemples = style.exemples.length
@@ -113,13 +106,18 @@ ${exemples}`;
       + 'laisse la ligne « Plus d\'informations » sans URL et signale-le dans les remarques.',
   ].join('\n');
 
-  const reponse = await client.messages.create({
-    model: modele || 'claude-opus-5',
-    max_tokens: 8000,
-    system: consignes,
-    output_config: { format: { type: 'json_schema', schema: SCHEMA } },
-    messages: [{ role: 'user', content: details }],
-  });
+  let reponse;
+  try {
+    reponse = await client.messages.create({
+      model: modele || 'claude-opus-5',
+      max_tokens: 8000,
+      system: consignes,
+      output_config: { format: { type: 'json_schema', schema: SCHEMA } },
+      messages: [{ role: 'user', content: details }],
+    });
+  } catch (erreur) {
+    throw new Error(messageClaude(erreur));
+  }
 
   if (reponse.stop_reason === 'refusal') {
     throw new Error("La rédaction n'a pas abouti. Réessayez.");

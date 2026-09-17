@@ -1,8 +1,8 @@
 // Lecture de la fiche PDF : la fiche est transmise telle quelle a Claude
 // (y compris si elle est scannee) et revient sous forme de champs structures,
 // calques sur la collection Webflow.
-import Anthropic from '@anthropic-ai/sdk';
 import { cleAnthropic } from './config.js';
+import { clientClaude, messageClaude } from './claude.js';
 import { schemaExtraction } from './schema.js';
 
 const TAILLE_MAX_PDF = 28 * 1024 * 1024; // marge sous la limite de 32 Mo par requete
@@ -40,8 +40,7 @@ export function extractionDisponible() {
  * @returns {Promise<{extrait: object, remarques: string[], usage: object}>}
  */
 export async function lireFiche(pdf, structure, options = {}) {
-  const cle = cleAnthropic();
-  if (!cle) {
+  if (!cleAnthropic()) {
     throw new Error(
       'ANTHROPIC_API_KEY absente : la lecture automatique de la fiche est désactivée. '
       + "Renseignez la clé dans .env, ou saisissez les champs à la main dans l'écran de relecture."
@@ -54,14 +53,16 @@ export async function lireFiche(pdf, structure, options = {}) {
     );
   }
 
-  const client = new Anthropic({ apiKey: cle });
+  const client = clientClaude('la lecture automatique de la fiche');
   const schema = schemaExtraction(structure);
 
   const consignesEtude = options.consignes?.trim()
     ? `\n\nConsignes propres à l'étude :\n${options.consignes.trim()}`
     : '';
 
-  const reponse = await client.messages.create({
+  let reponse;
+  try {
+    reponse = await client.messages.create({
     model: options.modele || 'claude-opus-5',
     max_tokens: 16000,
     system: CONSIGNES + consignesEtude,
@@ -87,7 +88,10 @@ export async function lireFiche(pdf, structure, options = {}) {
         ],
       },
     ],
-  });
+    });
+  } catch (erreur) {
+    throw new Error(messageClaude(erreur));
+  }
 
   if (reponse.stop_reason === 'refusal') {
     throw new Error(
