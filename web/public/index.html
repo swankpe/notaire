@@ -519,17 +519,27 @@
         if (biensCharges) return;
         biensCharges = true;
         const liste = $('choixBien');
+        const poses = poserFiltres();
         try {
           const donnees = await appel('/api/biens');
           etat.biens = donnees.biens;
           if (!etat.biens.length) {
+            $('filtresBiens').innerHTML = '';
             liste.innerHTML = '<option>Aucun bien dans la collection</option>';
             return;
           }
-          await construireFiltres();
+          // Un champ dont les biens ne portent qu'une seule valeur ne donnera pas
+          // de filtre : sa place est rendue en même temps que la liste s'affiche,
+          // sans attendre la collection liée — un seul remaniement à l'écran.
+          for (const { champ } of poses) {
+            if (valeursUtilisees(champ).size > 1) continue;
+            document.getElementById('f-' + champ.slug)?.closest('.champ').remove();
+          }
           afficherBiens();
+          await remplirFiltres(poses);
         } catch (erreur) {
           biensCharges = false;
+          $('filtresBiens').innerHTML = '';
           if (erreur instanceof SessionExpiree) return;
           liste.innerHTML = '<option>Chargement impossible</option>';
           avis($('resultatFacebook'), 'erreur', 'Lecture des biens impossible', [erreur.message]);
@@ -538,36 +548,65 @@
 
       // Un filtre par champ de référence : on restreint d'abord à une ville,
       // puis on choisit le bien — plus court que de dérouler 157 lignes.
-      async function construireFiltres() {
+      //
+      // Les filtres prennent leur place avant toute réponse du serveur : insérés
+      // au fur et à mesure, ils poussaient vers le bas la liste des biens déjà
+      // affichée, qui descendait sous le curseur. Les collections liées partent
+      // en même temps que la liste des biens, pas après : l'attente vaut un
+      // aller-retour au lieu d'un par filtre. Une multi-référence porte un
+      // tableau, que la comparaison d'`afficherBiens` ne sait pas filtrer : elle
+      // n'a pas de filtre.
+      function poserFiltres() {
         const conteneur = $('filtresBiens');
         conteneur.innerHTML = '';
+        const poses = [];
         for (const champ of etat.references) {
-          if (!champ.collectionReferencee) continue;
-          try {
-            const { items } = await optionsReference(champ.collectionReferencee);
-            // Inutile de proposer un filtre sur une valeur qu'aucun bien ne porte.
-            const utilises = new Set(etat.biens.map((b) => b.references?.[champ.slug]));
-            const proposables = items.filter((i) => utilises.has(i.id));
-            if (proposables.length < 2) continue;
+          if (!champ.collectionReferencee || champ.type === 'MultiReference') continue;
 
-            conteneur.insertAdjacentHTML(
-              'beforeend',
-              `<div class="champ">
-                 <label for="f-${echapper(champ.slug)}">${echapper(champ.libelle)}</label>
-                 <select id="f-${echapper(champ.slug)}" data-filtre="${echapper(champ.slug)}">
-                   <option value="">— indifférent —</option>
-                   ${proposables
-                     .map((i) => `<option value="${echapper(i.id)}">${echapper(i.nom)}</option>`)
-                     .join('')}
-                 </select>
-               </div>`
-            );
-          } catch (erreur) {
-            if (erreur instanceof SessionExpiree) return;
-          }
+          conteneur.insertAdjacentHTML(
+            'beforeend',
+            `<div class="champ">
+               <label for="f-${echapper(champ.slug)}">${echapper(champ.libelle)}</label>
+               <select id="f-${echapper(champ.slug)}" data-filtre="${echapper(champ.slug)}" disabled>
+                 <option value="">Chargement…</option>
+               </select>
+             </div>`
+          );
+          const reponse = optionsReference(champ.collectionReferencee);
+          reponse.catch(() => {}); // l'erreur se traite dans remplirFiltres
+          poses.push({ champ, reponse });
         }
-        conteneur.querySelectorAll('[data-filtre]').forEach((liste) =>
-          liste.addEventListener('change', afficherBiens)
+        return poses;
+      }
+
+      const valeursUtilisees = (champ) =>
+        new Set(etat.biens.map((b) => b.references?.[champ.slug]).filter(Boolean));
+
+      // Il reste à écarter une valeur que la collection liée ne connaît plus :
+      // les filtres survivants ont déjà deux valeurs parmi les biens.
+      async function remplirFiltres(poses) {
+        await Promise.all(
+          poses.map(async ({ champ, reponse }) => {
+            const liste = document.getElementById('f-' + champ.slug);
+            if (!liste) return;
+            const utilises = valeursUtilisees(champ);
+            try {
+              const { items } = await reponse;
+              const proposables = items.filter((i) => utilises.has(i.id));
+              if (proposables.length < 2) return liste.closest('.champ').remove();
+
+              liste.innerHTML =
+                '<option value="">— indifférent —</option>'
+                + proposables
+                    .map((i) => `<option value="${echapper(i.id)}">${echapper(i.nom)}</option>`)
+                    .join('');
+              liste.disabled = false;
+              liste.addEventListener('change', afficherBiens);
+            } catch (erreur) {
+              if (erreur instanceof SessionExpiree) return;
+              liste.closest('.champ').remove();
+            }
+          })
         );
       }
 
