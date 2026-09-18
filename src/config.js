@@ -31,6 +31,8 @@ export const CONFIG_PAR_DEFAUT = {
   champGalerie: null,
   // Slug d'un champ « File » ou deposer la fiche PDF elle-meme (null = ignore).
   champFichePdf: null,
+  // Slug du champ prix, affiche dans la liste des biens. null = detection auto.
+  champPrix: null,
   // Consignes libres transmises a Claude pour la lecture des fiches
   // (vocabulaire de l'etude, conventions de redaction, mentions obligatoires...).
   consignes: '',
@@ -52,6 +54,7 @@ const DEPUIS_ENV = {
   champImagePrincipale: 'WEBFLOW_CHAMP_IMAGE',
   champGalerie: 'WEBFLOW_CHAMP_GALERIE',
   champFichePdf: 'WEBFLOW_CHAMP_FICHE_PDF',
+  champPrix: 'WEBFLOW_CHAMP_PRIX',
   consignes: 'CONSIGNES',
   modele: 'MODELE',
 };
@@ -93,7 +96,7 @@ export function lireConfig() {
 export function ecrireConfig(config) {
   const aGarder = [
     'siteId', 'siteNom', 'collectionId', 'collectionNom',
-    'champImagePrincipale', 'champGalerie', 'champFichePdf',
+    'champImagePrincipale', 'champGalerie', 'champFichePdf', 'champPrix',
     'consignes', 'photoLargeurMax', 'photoQualite', 'modele',
   ];
   const reglages = {};

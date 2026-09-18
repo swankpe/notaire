@@ -308,12 +308,21 @@ await verifier('aucun etat serveur n\'est necessaire entre les etapes', async ()
 
 console.log('\nPublication Facebook');
 
-await verifier('la liste des biens est servie, du plus recent au plus ancien', async () => {
+await verifier('la liste des biens porte le prix et les references, pour filtrer a l\'ecran', async () => {
   const { statut, corps } = await appel('/api/biens');
   assert.equal(statut, 200);
-  assert.ok(corps.biens.length >= 2, 'les annonces creees plus haut doivent apparaitre');
-  assert.ok(corps.biens.every((b) => b.id && b.nom));
+  assert.ok(corps.biens.length >= 2);
+  assert.equal(corps.champPrix, 'Prix', 'le champ prix est reconnu sans etre code en dur');
+
+  const plouha = corps.biens.find((b) => b.nom === 'Maison a Plouha');
+  assert.equal(plouha.prix, 198000);
+  assert.equal(plouha.references.notaire, 'ref1');
+  assert.ok('quartiers' in plouha.references, 'chaque champ de reference est expose');
   assert.ok(corps.biens.some((b) => b.brouillon), 'le statut brouillon est signale');
+  assert.ok(
+    !corps.biens.some((b) => b.donnees),
+    'seules les valeurs utiles sortent, pas toute la fiche'
+  );
 });
 
 await verifier('la redaction exige un bien', async () => {

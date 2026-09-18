@@ -84,6 +84,9 @@ pas hors d'un vrai navigateur.
 - Une clé Anthropic non rattachée à un espace de travail fait répondre `400`
   à l'API. `src/claude.js` transmet `ANTHROPIC_WORKSPACE_ID` quand la variable
   existe, et traduit l'erreur en conseil plutôt que de la laisser brute.
+- `choisirChampPrix` ne se rabat **jamais** sur « le premier champ numérique » :
+  il afficherait un nombre de pièces en guise de prix. Sans champ dont le nom
+  évoque un prix, on n'affiche rien.
 - Le style des posts Facebook tient dans les **exemples** de
   `config/publication.json`, pas dans les consignes. Pour corriger un ton qui
   dérive, ajouter un bon post plutôt que réécrire les règles.

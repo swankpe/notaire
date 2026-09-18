@@ -25,7 +25,12 @@ import {
 } from '../src/webflow.js';
 import { lireStyle, redigerPublication, lienDuBien } from '../src/publication.js';
 import { espaceDeTravail } from '../src/claude.js';
-import { analyserCollection, choisirChampImage, choisirChampGalerie } from '../src/schema.js';
+import {
+  analyserCollection,
+  choisirChampImage,
+  choisirChampGalerie,
+  choisirChampPrix,
+} from '../src/schema.js';
 import {
   chargerStructure,
   lireLaFiche,
@@ -299,8 +304,30 @@ export function creerApplication() {
 
   app.get('/api/biens', async (requete, reponse) => {
     const config = lireConfig();
-    const biens = await listerItems(config.collectionId, jetonWebflow(), { tri: 'recent' });
-    reponse.json({ biens, collection: config.collectionNom });
+    const jeton = jetonWebflow();
+    const structure = await chargerStructure(config, jeton);
+    const champPrix = choisirChampPrix(structure, config.champPrix);
+
+    const items = await listerItems(config.collectionId, jeton, {
+      tri: 'recent',
+      avecDonnees: true,
+    });
+
+    reponse.json({
+      collection: config.collectionNom,
+      champPrix: champPrix ? champPrix.displayName : null,
+      biens: items.map((b) => ({
+        id: b.id,
+        nom: b.nom,
+        brouillon: b.brouillon,
+        prix: champPrix ? (b.donnees?.[champPrix.slug] ?? null) : null,
+        // Valeur de chaque champ de reference, pour filtrer la liste a l'ecran
+        // (par ville, par office...) sans rappeler Webflow.
+        references: Object.fromEntries(
+          structure.champsReference.map((c) => [c.slug, b.donnees?.[c.slug] ?? null])
+        ),
+      })),
+    });
   });
 
   app.post('/api/publication', async (requete, reponse) => {

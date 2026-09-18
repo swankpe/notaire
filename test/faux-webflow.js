@@ -85,6 +85,14 @@ export function demarrerFauxWebflow(port = 4599) {
     { id: 'ref1', fieldData: { name: 'Maitre Alain Bernard', slug: 'alain-bernard' } },
   ];
 
+  // Deux biens deja en ligne, pour la liste de l'onglet Facebook.
+  items.push(
+    { id: 'ancien1', isDraft: false, createdOn: '2026-01-02',
+      fieldData: { name: 'Maison a Plouha', slug: 'maison-plouha', prix: 198000, notaire: 'ref1' } },
+    { id: 'ancien2', isDraft: false, createdOn: '2026-01-01',
+      fieldData: { name: 'Longere a Lannion', slug: 'longere-lannion', prix: 264500, notaire: 'ref2' } }
+  );
+
   app.get('/v2/collections/:id/items', (requete, reponse) => {
     const lot = requete.params.id === 'col2' ? referencables : items;
     reponse.json({ items: lot, pagination: { total: lot.length } });

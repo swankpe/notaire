@@ -61,6 +61,29 @@ export function choisirChampGalerie(structure, prefere) {
   return structure.champsGalerie[0] ?? null;
 }
 
+/**
+ * Repere le champ « prix » pour l'afficher dans la liste des biens. On ne se
+ * rabat jamais sur « le premier champ numerique venu » : ce serait afficher un
+ * nombre de pieces en guise de prix.
+ */
+export function choisirChampPrix(structure, prefere) {
+  const nombres = structure.champs.filter((c) => c.type === 'Number');
+  if (prefere) {
+    const exact = nombres.find((c) => c.slug === prefere);
+    if (exact) return exact;
+  }
+  const indices = ['prix', 'price', 'montant', 'tarif'];
+  return (
+    nombres.find((c) =>
+      indices.some(
+        (i) =>
+          c.slug.toLowerCase().includes(i) ||
+          sansAccent(c.displayName ?? '').includes(i)
+      )
+    ) ?? null
+  );
+}
+
 /** Signale un slug configure qui ne correspond a aucun champ de la collection. */
 export function reglagesIncoherents(structure, config) {
   const soucis = [];

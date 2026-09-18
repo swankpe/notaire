@@ -361,8 +361,11 @@
         <div id="vueFacebook" hidden>
           <section>
             <h2>Rédiger un post Facebook</h2>
+            <div id="filtresBiens"></div>
             <div class="champ">
-              <label for="choixBien">Bien à annoncer</label>
+              <label for="choixBien">
+                Bien à annoncer<span class="aide" id="compteurBiens"></span>
+              </label>
               <select id="choixBien" disabled><option>Chargement…</option></select>
             </div>
             <div class="barre-actions">
@@ -381,7 +384,7 @@
     <script type="module">
       const $ = (id) => document.getElementById(id);
       const etat = {
-        config: null, fichiers: [], pdf: null, photos: [], champs: [], references: [],
+        config: null, fichiers: [], pdf: null, photos: [], champs: [], references: [], biens: [],
       };
 
       const echapper = (t) =>
@@ -505,34 +508,95 @@
         })
       );
 
+      const euros = new Intl.NumberFormat('fr-FR', {
+        style: 'currency',
+        currency: 'EUR',
+        maximumFractionDigits: 0,
+      });
+
       let biensCharges = false;
       async function chargerBiens() {
         if (biensCharges) return;
         biensCharges = true;
         const liste = $('choixBien');
         try {
-          const { biens } = await appel('/api/biens');
-          if (!biens.length) {
+          const donnees = await appel('/api/biens');
+          etat.biens = donnees.biens;
+          if (!etat.biens.length) {
             liste.innerHTML = '<option>Aucun bien dans la collection</option>';
             return;
           }
-          liste.innerHTML =
-            '<option value="">— choisissez —</option>'
-            + biens
-                .map(
-                  (b) =>
-                    `<option value="${echapper(b.id)}">${echapper(b.nom)}`
-                    + (b.brouillon ? ' (brouillon)' : '')
-                    + '</option>'
-                )
-                .join('');
-          liste.disabled = false;
+          await construireFiltres();
+          afficherBiens();
         } catch (erreur) {
           biensCharges = false;
           if (erreur instanceof SessionExpiree) return;
           liste.innerHTML = '<option>Chargement impossible</option>';
           avis($('resultatFacebook'), 'erreur', 'Lecture des biens impossible', [erreur.message]);
         }
+      }
+
+      // Un filtre par champ de référence : on restreint d'abord à une ville,
+      // puis on choisit le bien — plus court que de dérouler 157 lignes.
+      async function construireFiltres() {
+        const conteneur = $('filtresBiens');
+        conteneur.innerHTML = '';
+        for (const champ of etat.references) {
+          if (!champ.collectionReferencee) continue;
+          try {
+            const { items } = await optionsReference(champ.collectionReferencee);
+            // Inutile de proposer un filtre sur une valeur qu'aucun bien ne porte.
+            const utilises = new Set(etat.biens.map((b) => b.references?.[champ.slug]));
+            const proposables = items.filter((i) => utilises.has(i.id));
+            if (proposables.length < 2) continue;
+
+            conteneur.insertAdjacentHTML(
+              'beforeend',
+              `<div class="champ">
+                 <label for="f-${echapper(champ.slug)}">${echapper(champ.libelle)}</label>
+                 <select id="f-${echapper(champ.slug)}" data-filtre="${echapper(champ.slug)}">
+                   <option value="">— indifférent —</option>
+                   ${proposables
+                     .map((i) => `<option value="${echapper(i.id)}">${echapper(i.nom)}</option>`)
+                     .join('')}
+                 </select>
+               </div>`
+            );
+          } catch (erreur) {
+            if (erreur instanceof SessionExpiree) return;
+          }
+        }
+        conteneur.querySelectorAll('[data-filtre]').forEach((liste) =>
+          liste.addEventListener('change', afficherBiens)
+        );
+      }
+
+      function afficherBiens() {
+        const filtres = [...$('filtresBiens').querySelectorAll('[data-filtre]')]
+          .map((l) => [l.dataset.filtre, l.value])
+          .filter(([, valeur]) => valeur);
+
+        const retenus = etat.biens.filter((b) =>
+          filtres.every(([slug, valeur]) => b.references?.[slug] === valeur)
+        );
+
+        const liste = $('choixBien');
+        liste.innerHTML =
+          '<option value="">— choisissez —</option>'
+          + retenus
+              .map((b) => {
+                const prix = typeof b.prix === 'number' ? ` — ${euros.format(b.prix)}` : '';
+                const mention = b.brouillon ? ' (brouillon)' : '';
+                return `<option value="${echapper(b.id)}">${echapper(b.nom)}${prix}${mention}</option>`;
+              })
+              .join('');
+        liste.disabled = retenus.length === 0;
+
+        $('compteurBiens').textContent =
+          retenus.length === etat.biens.length
+            ? `${etat.biens.length} au total`
+            : `${retenus.length} sur ${etat.biens.length}`;
+        $('boutonRediger').disabled = true;
       }
 
       $('choixBien').addEventListener('change', (ev) => {
@@ -954,10 +1018,21 @@
           </select></div>`;
       }
 
+      // Une collection référencée n'est interrogée qu'une fois par session :
+      // les appels Webflow sont cadencés côté serveur, et les mêmes listes
+      // servent aux listes déroulantes de relecture comme aux filtres.
+      const cacheReferences = new Map();
+      function optionsReference(collectionId) {
+        if (!cacheReferences.has(collectionId)) {
+          cacheReferences.set(
+            collectionId,
+            appel('/api/references?collectionId=' + encodeURIComponent(collectionId))
+          );
+        }
+        return cacheReferences.get(collectionId);
+      }
+
       async function chargerReferences() {
-        // Deux champs peuvent viser la même collection : on ne l'interroge
-        // qu'une fois (les appels Webflow sont cadencés côté serveur).
-        const dejaVues = new Map();
         for (const champ of etat.references) {
           const liste = document.getElementById('c-' + champ.slug);
           if (!liste) continue;
@@ -966,13 +1041,7 @@
             continue;
           }
           try {
-            if (!dejaVues.has(champ.collectionReferencee)) {
-              dejaVues.set(
-                champ.collectionReferencee,
-                appel('/api/references?collectionId=' + encodeURIComponent(champ.collectionReferencee))
-              );
-            }
-            const { items } = await dejaVues.get(champ.collectionReferencee);
+            const { items } = await optionsReference(champ.collectionReferencee);
             const choix = items
               .map((i) => `<option value="${echapper(i.id)}">${echapper(i.nom)}</option>`)
               .join('');

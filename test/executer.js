@@ -85,6 +85,24 @@ await verifier('les champs medias et references sont exclus de la lecture de fic
   assert.deepEqual(structure.champsNonGeres.map((c) => c.slug), ['couleur']);
 });
 
+await verifier('le champ prix est reconnu, et jamais confondu avec un autre nombre', async () => {
+  const { choisirChampPrix } = await import('../src/schema.js');
+  assert.equal(choisirChampPrix(structure, null).slug, 'prix');
+  assert.equal(choisirChampPrix(structure, 'surface').slug, 'surface', 'un slug configure gagne');
+
+  const sansPrix = {
+    champs: [
+      { slug: 'nbr-pieces', displayName: 'Nombre de pieces', type: 'Number' },
+      { slug: 'surface', displayName: 'Surface', type: 'Number' },
+    ],
+  };
+  assert.equal(
+    choisirChampPrix(sansPrix, null),
+    null,
+    'sans champ ressemblant a un prix, on n affiche rien plutot qu un nombre au hasard'
+  );
+});
+
 await verifier('les champs de reference sont isoles, avec leur collection cible', () => {
   assert.deepEqual(
     structure.champsReference.map((c) => [c.slug, c.type, c.validations?.collectionId]),

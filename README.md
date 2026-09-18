@@ -183,10 +183,18 @@ en local (`npm start`) reste gratuit et strictement équivalent.
 
 ## Rédiger un post Facebook
 
-Second onglet de l'outil. Vous choisissez un bien parmi ceux du CMS (les plus
-récents en tête, les brouillons signalés), et il rédige le post dans le style
-de vos publications précédentes, à partir de la fiche telle qu'elle figure sur
-le site.
+Second onglet de l'outil. Vous choisissez un bien parmi ceux du CMS, et il
+rédige le post dans le style de vos publications précédentes, à partir de la
+fiche telle qu'elle figure sur le site.
+
+Avec plus de cent cinquante biens, dérouler la liste ne suffit pas : un
+**filtre par ville** (et par office, ou tout autre champ de référence de votre
+collection) restreint d'abord la sélection. Les biens apparaissent ensuite du
+plus récent au plus ancien, **avec leur prix**, et les brouillons sont
+signalés.
+
+Un filtre n'est proposé que si au moins deux biens s'y répartissent : inutile
+d'encombrer l'écran avec un critère qui ne trie rien.
 
 Le texte s'affiche dans une zone modifiable : relisez, corrigez, copiez. Rien
 n'est publié automatiquement — c'est vous qui collez dans Facebook.
@@ -251,6 +259,7 @@ d'environnement.
 | `champGalerie` | `WEBFLOW_CHAMP_GALERIE` | slug du champ galerie ; vide = détection automatique |
 | `champFichePdf` | `WEBFLOW_CHAMP_FICHE_PDF` | slug d'un champ *Fichier* où déposer la fiche PDF ; vide = la fiche n'est pas envoyée |
 | `consignes` | `CONSIGNES` | consignes libres pour la lecture automatique |
+| `champPrix` | `WEBFLOW_CHAMP_PRIX` | slug du champ prix affiché dans la liste des biens ; vide = détection automatique |
 | `photoLargeurMax` | `PHOTO_LARGEUR_MAX` | largeur maximale des photos (2400 px par défaut ; 1920 divise encore le poids par deux) |
 | `photoQualite` | `PHOTO_QUALITE` | qualité JPEG (82 par défaut) |
 | `modele` | `MODELE` | modèle utilisé pour la lecture des fiches |

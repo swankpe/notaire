@@ -185,7 +185,7 @@ export async function chercherItemParSlug(collectionId, slug, jeton) {
  * champ « Reference ». On s'arrete a 500 : au-dela, une liste deroulante n'est
  * de toute facon plus le bon outil.
  */
-export async function listerItems(collectionId, jeton, { tri = 'nom' } = {}) {
+export async function listerItems(collectionId, jeton, { tri = 'nom', avecDonnees = false } = {}) {
   const trouves = [];
   for (let page = 0; page < 5; page++) {
     const lot = await requete(
@@ -200,6 +200,7 @@ export async function listerItems(collectionId, jeton, { tri = 'nom' } = {}) {
         slug: item.fieldData?.slug ?? null,
         cree: item.createdOn ?? null,
         brouillon: Boolean(item.isDraft),
+        ...(avecDonnees ? { donnees: item.fieldData ?? {} } : {}),
       });
     }
     if (items.length < 100) break;
