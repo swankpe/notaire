@@ -177,7 +177,7 @@ async function commandeImport(args) {
   console.log(`  Photos : ${depot.photos.length}`);
   console.log(GRIS('\nLecture de la fiche…'));
 
-  const analyse = await lireLaFiche(depot.pdf, structure, config);
+  const analyse = await lireLaFiche({ pdf: depot.pdf }, structure, config);
 
   console.log(GRAS('\nChamps reconnus'));
   for (const champ of structure.champsExtraits) {

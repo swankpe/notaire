@@ -847,12 +847,16 @@
           : '';
 
         let note = '';
-        if (pdfs.length > 1) note = "Plusieurs PDF déposés : n'en gardez qu'un seul.";
-        else if (pdfs[0] && pdfs[0].size > 4 * 1024 * 1024) {
-          note = `La fiche fait ${(pdfs[0].size / 1024 / 1024).toFixed(1)} Mo : la limite d'envoi est de 4 Mo.`;
+        let bloquant = false;
+        if (pdfs.length > 1) {
+          note = "Plusieurs PDF déposés : n'en gardez qu'un seul.";
+          bloquant = true;
+        } else if (pdfs[0] && pdfs[0].size > SEUIL_PDF) {
+          note = `Fiche de ${(pdfs[0].size / 1024 / 1024).toFixed(1)} Mo :`
+            + ' ses pages seront converties en images avant l\'envoi.';
         }
         $('noteDepot').textContent = note;
-        $('boutonAnalyser').disabled = etat.fichiers.length === 0 || Boolean(note);
+        $('boutonAnalyser').disabled = etat.fichiers.length === 0 || bloquant;
       }
 
       // ── Préparation des photos dans le navigateur ─────────────────────
@@ -911,6 +915,65 @@
         return soucis;
       }
 
+      // ── Fiche trop lourde : conversion en images ──────────────────────
+      //
+      // Une requête ne peut pas dépasser 4,5 Mo. Plutôt que de refuser une
+      // fiche scannée de 12 Mo, on rend ses pages en JPEG : Claude les lit
+      // aussi bien, et une fiche scannée est de toute façon une image.
+      const SEUIL_PDF = 3.4 * 1024 * 1024;
+      const BUDGET_PAGES = 3.2 * 1024 * 1024;
+
+      async function convertirFicheEnImages(fichier, progres) {
+        let pdfjs;
+        try {
+          pdfjs = await import('/vendor/pdf.min.mjs');
+          pdfjs.GlobalWorkerOptions.workerSrc = '/vendor/pdf.worker.min.mjs';
+        } catch {
+          throw new Error(
+            "Le convertisseur PDF n'a pas pu être chargé. Réduisez la fiche à moins de "
+              + '3 Mo, ou saisissez les champs à la main.'
+          );
+        }
+
+        const document_ = await pdfjs.getDocument({
+          data: new Uint8Array(await fichier.arrayBuffer()),
+          isEvalSupported: false,
+        }).promise;
+
+        // On baisse la définition tant que le lot ne tient pas dans une requête.
+        for (const [largeur, qualite] of [[1700, 0.75], [1300, 0.7], [1000, 0.62]]) {
+          const pages = [];
+          let total = 0;
+          for (let n = 1; n <= document_.numPages; n++) {
+            progres(`Conversion de la page ${n} sur ${document_.numPages}…`);
+            const page = await document_.getPage(n);
+            const base = page.getViewport({ scale: 1 });
+            const viewport = page.getViewport({ scale: Math.min(2, largeur / base.width) });
+
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.round(viewport.width);
+            canvas.height = Math.round(viewport.height);
+            const contexte = canvas.getContext('2d');
+            contexte.fillStyle = '#fff';
+            contexte.fillRect(0, 0, canvas.width, canvas.height);
+            await page.render({ canvas, canvasContext: contexte, viewport }).promise;
+
+            const blob = await new Promise((r) => canvas.toBlob(r, 'image/jpeg', qualite));
+            if (!blob) throw new Error('La page ' + n + " n'a pas pu être convertie.");
+            pages.push(blob);
+            total += blob.size;
+            if (total > BUDGET_PAGES) break; // inutile de finir : on recommence plus petit
+          }
+          if (pages.length === document_.numPages && total <= BUDGET_PAGES) {
+            return { pages, total, nombre: document_.numPages };
+          }
+        }
+        throw new Error(
+          `Cette fiche de ${document_.numPages} pages reste trop lourde même réduite. `
+            + 'Envoyez-en une version allégée, ou seulement les pages utiles.'
+        );
+      }
+
       // ── Lecture de la fiche ───────────────────────────────────────────
       $('boutonAnalyser').addEventListener('click', async () => {
         const bouton = $('boutonAnalyser');
@@ -921,8 +984,30 @@
           etat.pdf = etat.fichiers.find(estPdf) ?? null;
 
           const formulaire = new FormData();
-          if (etat.pdf) formulaire.append('fiche', etat.pdf, etat.pdf.name);
+          let converties = null;
+          if (etat.pdf && etat.pdf.size > SEUIL_PDF) {
+            converties = await convertirFicheEnImages(etat.pdf, (texte) => {
+              $('noteDepot').innerHTML =
+                `<span class="chargement"><span class="rond"></span>${echapper(texte)}</span>`;
+            });
+            converties.pages.forEach((page, i) =>
+              formulaire.append('pages', page, `page-${i + 1}.jpg`)
+            );
+          } else if (etat.pdf) {
+            formulaire.append('fiche', etat.pdf, etat.pdf.name);
+          }
+
+          $('noteDepot').innerHTML =
+            '<span class="chargement"><span class="rond"></span>Lecture de la fiche…</span>';
           const lecture = await appel('/api/analyse', { method: 'POST', body: formulaire });
+          if (converties) {
+            lecture.avertissements = [
+              `Fiche de ${(etat.pdf.size / 1024 / 1024).toFixed(1)} Mo convertie en `
+                + `${converties.nombre} image(s) (${Math.round(converties.total / 1024)} Ko) `
+                + 'pour tenir dans la limite d\'envoi. Relisez les montants avec attention.',
+              ...(lecture.avertissements ?? []),
+            ];
+          }
 
           etat.photos = [];
           const soucis = await ajouterPhotos(etat.fichiers);

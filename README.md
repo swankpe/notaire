@@ -164,7 +164,7 @@ l'usage, mais expliquent la structure du code :
 
 | Contrainte Vercel | Conséquence |
 | --- | --- |
-| **4,5 Mo par requête** | Les photos sont réduites dans le navigateur puis envoyées **une par une**, avec une barre de progression. Une fiche PDF de plus de 4 Mo est refusée avec un message clair : allégez-la. |
+| **4,5 Mo par requête** | Les photos sont réduites dans le navigateur puis envoyées **une par une**, avec une barre de progression. Une fiche PDF trop lourde voit ses **pages converties en images** avant l'envoi. |
 | **Aucune mémoire entre deux requêtes** | Rien n'est gardé côté serveur. Le navigateur conserve la fiche et les photos, et chaque étape est autonome. Fermer l'onglet en cours de route ne laisse donc rien derrière. |
 | **Disque en lecture seule** | La configuration vient des variables d'environnement, pas de `config/config.json`. |
 
@@ -283,8 +283,15 @@ Ce n'est pas un problème : la fiche est envoyée telle quelle et lue comme une
 image. Relisez simplement les montants avec attention.
 
 **Ma fiche PDF fait plus de 4 Mo.**
-En ligne, c'est la limite par requête de Vercel. Compressez le PDF, ou passez
-par la version locale qui n'a pas cette limite.
+C'est traité automatiquement : au-delà de 3,4 Mo, le navigateur convertit les
+pages du PDF en images avant de les envoyer, en baissant la définition jusqu'à
+tenir dans la limite d'une requête. Une fiche scannée de 7,6 Mo descend
+typiquement à 1,4 Mo en quatre images.
+
+Claude lit ces images aussi bien que le PDF — une fiche scannée est de toute
+façon une image. L'écran vous prévient de la conversion et vous invite à
+relire les montants. Si même réduite la fiche ne passe pas, il vous le dit et
+suggère de n'envoyer que les pages utiles.
 
 **Un bien porte déjà ce titre.**
 L'outil détecte le doublon et crée l'annonce sous un slug voisin plutôt que

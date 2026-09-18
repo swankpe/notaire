@@ -187,6 +187,31 @@ await verifier('la fiche PDF est lue seule, sans les photos', async () => {
   assert.ok(corps.avertissements.some((a) => /ANTHROPIC_API_KEY/.test(a)));
 });
 
+await verifier('une fiche convertie en pages est lue comme une fiche', async () => {
+  // Chemin emprunte quand le PDF depasse la limite d'une requete : le
+  // navigateur envoie les pages en images a la place du document.
+  const formulaire = new FormData();
+  for (const nom of ['photo-1.jpg', 'photo-2.jpg']) {
+    formulaire.append('pages', fichier(nom, 'image/jpeg'), nom);
+  }
+  const { statut, corps } = await appel('/api/analyse', { method: 'POST', body: formulaire });
+  assert.equal(statut, 200, JSON.stringify(corps));
+  assert.ok(
+    !corps.avertissements.some((a) => /Aucune fiche PDF/.test(a)),
+    'des pages en images valent une fiche : on ne doit pas la dire absente'
+  );
+  assert.ok(corps.avertissements.some((a) => /ANTHROPIC_API_KEY/.test(a)));
+});
+
+await verifier('sans fiche ni pages, l\'absence est bien signalee', async () => {
+  const { statut, corps } = await appel('/api/analyse', {
+    method: 'POST',
+    body: new FormData(),
+  });
+  assert.equal(statut, 200);
+  assert.ok(corps.avertissements.some((a) => /Aucune fiche PDF/.test(a)));
+});
+
 let slug;
 await verifier('le slug est arrete avant l\'envoi des photos', async () => {
   const { statut, corps } = await appel('/api/slug', {

@@ -34,19 +34,21 @@ export async function chargerStructure(config, jeton) {
 
 // ── Etape 1 : lire la fiche (rien n'est envoye a Webflow) ─────────────────
 
-export async function lireLaFiche(pdf, structure, config) {
+export async function lireLaFiche(source, structure, config) {
+  const fiche = source instanceof Uint8Array ? { pdf: source } : (source ?? {});
+  const aUneFiche = Boolean(fiche.pdf || fiche.images?.length);
   const remarques = [];
   const avertissements = [];
   let extrait = {};
 
-  if (!pdf) {
+  if (!aUneFiche) {
     avertissements.push('Aucune fiche PDF fournie : les champs sont à saisir à la main.');
   } else if (!extractionDisponible()) {
     avertissements.push(
       'Lecture automatique désactivée (ANTHROPIC_API_KEY absente) : les champs sont à saisir à la main.'
     );
   } else {
-    const lecture = await lireFiche(pdf, structure, {
+    const lecture = await lireFiche(fiche, structure, {
       consignes: config.consignes,
       modele: config.modele,
     });
@@ -60,7 +62,7 @@ export async function lireLaFiche(pdf, structure, config) {
 
   if (!fieldData.name) {
     fieldData.name = 'Nouveau bien';
-    if (pdf) {
+    if (aUneFiche) {
       avertissements.push("Le titre de l'annonce n'a pas été trouvé dans la fiche : à compléter.");
     }
   }

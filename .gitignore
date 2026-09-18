@@ -9,3 +9,6 @@ biens/*/
 
 .tmp/
 *.log
+
+# Recopie a l installation par scripts/vendor.js
+web/public/vendor/

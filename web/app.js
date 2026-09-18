@@ -61,7 +61,8 @@ export function creerApplication() {
   const LIMITE_REQUETE = 4 * 1024 * 1024;
   const televersement = multer({
     storage: multer.memoryStorage(),
-    limits: { fileSize: LIMITE_REQUETE, files: 2 },
+    // Une fiche convertie en images arrive en plusieurs fichiers, un par page.
+    limits: { fileSize: LIMITE_REQUETE, files: 40 },
   });
 
   app.disable('x-powered-by');
@@ -211,12 +212,29 @@ export function creerApplication() {
 
   // ── Etape 1 : lecture de la fiche ───────────────────────────────────────
 
-  app.post('/api/analyse', televersement.single('fiche'), async (requete, reponse) => {
-    const config = lireConfig();
-    const structure = await chargerStructure(config, jetonWebflow());
-    const lecture = await lireLaFiche(requete.file?.buffer ?? null, structure, config);
-    reponse.json(lecture);
-  });
+  app.post(
+    '/api/analyse',
+    televersement.fields([
+      { name: 'fiche', maxCount: 1 },
+      { name: 'pages', maxCount: 40 },
+    ]),
+    async (requete, reponse) => {
+      const config = lireConfig();
+      const structure = await chargerStructure(config, jetonWebflow());
+
+      // Le navigateur envoie le PDF tel quel s'il tient dans une requete,
+      // sinon ses pages converties en images.
+      const lecture = await lireLaFiche(
+        {
+          pdf: requete.files?.fiche?.[0]?.buffer ?? null,
+          images: (requete.files?.pages ?? []).map((f) => f.buffer),
+        },
+        structure,
+        config
+      );
+      reponse.json(lecture);
+    }
+  );
 
   // ── Etape 2 : slug definitif ────────────────────────────────────────────
 

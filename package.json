@@ -13,13 +13,15 @@
     "champs": "node src/cli.js champs",
     "import": "node src/cli.js import",
     "test": "node test/executer.js && node test/web.js",
-    "vercel": "node src/cli.js vercel"
+    "vercel": "node src/cli.js vercel",
+    "postinstall": "node scripts/vendor.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.126.0",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "multer": "^2.4.0",
+    "pdfjs-dist": "^6.3.289",
     "sharp": "^0.35.4"
   }
 }

@@ -23,7 +23,7 @@ structure actuelle.
 
 | Contrainte | Conséquence dans le code |
 | --- | --- |
-| 4,5 Mo par requête | Photos réduites côté navigateur (canvas), envoyées **une par une** via `/api/media`. La fiche PDF part seule. |
+| 4,5 Mo par requête | Photos réduites côté navigateur (canvas), envoyées **une par une** via `/api/media`. La fiche PDF part seule ; au-delà de 3,4 Mo ses pages sont converties en images (pdf.js dans le navigateur) et envoyées en `pages[]`. |
 | Pas de mémoire entre requêtes | Le navigateur garde les fichiers ; chaque route est autonome. Ne jamais réintroduire un cache de session côté serveur. |
 | Disque en lecture seule | Rien ne s'écrit à l'exécution. Les réglages non secrets vivent dans `config/webflow.json`, **versionné**, donc déployé avec le code ; seuls les secrets sont des variables d'environnement. L'écran de configuration ne peut rien enregistrer : il affiche les valeurs à reporter. |
 | Détection du point d'entrée | `server.js` doit rester **à la racine** : c'est ainsi que Vercel capture le serveur. |
@@ -81,6 +81,11 @@ pas hors d'un vrai navigateur.
 - Une référence s'écrit comme l'identifiant de l'élément (`"65c…"`), une
   multi-référence comme un tableau d'identifiants. La collection visée se lit
   dans `validations.collectionId`.
+- **pdf.js : toujours le build `legacy/`.** Le build courant emploie
+  `Map.getOrInsertComputed`, absente des navigateurs qui ne sont pas de
+  dernière génération — la conversion échoue avec un message interne
+  incompréhensible. `scripts/vendor.js` recopie le bon build à l'installation
+  (postinstall), y compris sur Vercel ; `web/public/vendor/` n'est pas versionné.
 - Une clé Anthropic non rattachée à un espace de travail fait répondre `400`
   à l'API. `src/claude.js` transmet `ANTHROPIC_WORKSPACE_ID` quand la variable
   existe, et traduit l'erreur en conseil plutôt que de la laisser brute.

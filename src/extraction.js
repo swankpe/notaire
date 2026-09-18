@@ -34,22 +34,27 @@ export function extractionDisponible() {
 }
 
 /**
- * @param {Buffer} pdf              contenu de la fiche
+ * @param {{pdf?: Buffer, images?: Buffer[]}} source  la fiche, en PDF ou en pages
+ *   deja converties en images par le navigateur quand le PDF depassait la
+ *   limite de taille d'une requete
  * @param {object} structure        resultat de analyserCollection()
  * @param {object} options          { consignes, modele, texteSecours }
  * @returns {Promise<{extrait: object, remarques: string[], usage: object}>}
  */
-export async function lireFiche(pdf, structure, options = {}) {
+export async function lireFiche(source, structure, options = {}) {
+  const { pdf = null, images = [] } = source instanceof Uint8Array ? { pdf: source } : (source ?? {});
+
   if (!cleAnthropic()) {
     throw new Error(
       'ANTHROPIC_API_KEY absente : la lecture automatique de la fiche est désactivée. '
       + "Renseignez la clé dans .env, ou saisissez les champs à la main dans l'écran de relecture."
     );
   }
-  if (pdf.length > TAILLE_MAX_PDF) {
+  const poids = (pdf?.length ?? 0) + images.reduce((t, i) => t + i.length, 0);
+  if (poids > TAILLE_MAX_PDF) {
     throw new Error(
-      `La fiche PDF fait ${(pdf.length / 1024 / 1024).toFixed(1)} Mo, au-delà de la limite `
-      + 'de lecture automatique (28 Mo). Allégez le PDF ou saisissez les champs à la main.'
+      `La fiche fait ${(poids / 1024 / 1024).toFixed(1)} Mo, au-delà de la limite `
+      + 'de lecture automatique (28 Mo). Allégez-la ou saisissez les champs à la main.'
     );
   }
 
@@ -71,19 +76,33 @@ export async function lireFiche(pdf, structure, options = {}) {
       {
         role: 'user',
         content: [
-          {
-            type: 'document',
-            source: {
-              type: 'base64',
-              media_type: 'application/pdf',
-              data: pdf.toString('base64'),
-            },
-          },
+          // Soit le PDF d'origine, soit ses pages converties en images : Claude
+          // lit les deux, et une fiche scannee est de toute facon une image.
+          ...(pdf
+            ? [
+                {
+                  type: 'document',
+                  source: {
+                    type: 'base64',
+                    media_type: 'application/pdf',
+                    data: pdf.toString('base64'),
+                  },
+                },
+              ]
+            : images.map((image) => ({
+                type: 'image',
+                source: {
+                  type: 'base64',
+                  media_type: 'image/jpeg',
+                  data: image.toString('base64'),
+                },
+              }))),
           {
             type: 'text',
             text:
-              'Voici la fiche du bien. Remplis les champs de la collection Webflow '
-              + `« ${structure.nom} ».`,
+              'Voici la fiche du bien'
+              + (images.length ? ` (${images.length} page(s))` : '')
+              + `. Remplis les champs de la collection Webflow « ${structure.nom} ».`,
           },
         ],
       },
