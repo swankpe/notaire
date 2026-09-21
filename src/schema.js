@@ -10,8 +10,34 @@ const TYPES_REFERENCE = new Set(['Reference', 'MultiReference']);
 const TYPES_IGNORES = new Set(['Color', 'User', 'SkuValues']);
 const SLUGS_IGNORES = new Set(['slug', '_archived', '_draft']);
 
-export function analyserCollection(collection) {
-  const champs = (collection?.fields ?? []).filter((c) => c?.slug);
+// Comparaison indulgente : l'utilisateur ecrit « Office » dans la
+// configuration, la collection expose le slug « office-notarial » ou le nom
+// « Office ». Accents et majuscules ne doivent pas faire echouer la
+// correspondance.
+const normaliserNom = (texte) =>
+  String(texte ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+
+const correspond = (champ, nom) =>
+  normaliserNom(champ.slug) === nom || normaliserNom(champ.displayName) === nom;
+
+/**
+ * `champsObligatoires` : noms ou slugs que l'etude veut toujours voir remplis,
+ * en plus de ceux que Webflow declare obligatoires. Une annonce sans sa ville
+ * ou son office ne doit pas partir, meme si Webflow les accepte vides. La liste
+ * vient de la configuration, jamais du code : chaque etude a la sienne.
+ */
+export function analyserCollection(collection, champsObligatoires = []) {
+  const exiges = champsObligatoires.map(normaliserNom).filter(Boolean);
+  const champs = (collection?.fields ?? [])
+    .filter((c) => c?.slug)
+    .map((c) => {
+      const exigeParEtude = exiges.some((nom) => correspond(c, nom));
+      return { ...c, exigeParEtude, obligatoire: Boolean(c.isRequired) || exigeParEtude };
+    });
   return {
     id: collection.id,
     nom: collection.displayName,
@@ -98,6 +124,18 @@ export function reglagesIncoherents(structure, config) {
   verifier(config.champImagePrincipale, structure.champsImage, 'la photo principale');
   verifier(config.champGalerie, structure.champsGalerie, 'la galerie');
   verifier(config.champFichePdf, structure.champsFichier, 'la fiche PDF');
+
+  // Un champ declare obligatoire mais absent de la collection ne bloquerait
+  // rien : il passerait inapercu, et l'annonce partirait sans l'information.
+  for (const exige of config.champsObligatoires ?? []) {
+    const nom = normaliserNom(exige);
+    if (nom && !structure.champs.some((c) => correspond(c, nom))) {
+      soucis.push(
+        `Le champ « ${exige} », déclaré obligatoire, n'existe pas dans la collection `
+        + `« ${structure.nom} » : personne ne sera averti s'il reste vide.`
+      );
+    }
+  }
   return soucis;
 }
 

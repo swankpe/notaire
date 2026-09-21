@@ -263,6 +263,18 @@ d'environnement.
 | `photoLargeurMax` | `PHOTO_LARGEUR_MAX` | largeur maximale des photos (2400 px par défaut ; 1920 divise encore le poids par deux) |
 | `photoQualite` | `PHOTO_QUALITE` | qualité JPEG (82 par défaut) |
 | `modele` | `MODELE` | modèle utilisé pour la lecture des fiches |
+| `champsObligatoires` | `CHAMPS_OBLIGATOIRES` | noms ou slugs des champs que l'étude veut toujours voir remplis, en plus de ceux que Webflow déclare obligatoires ; l'écran de relecture refuse d'enregistrer tant qu'ils sont vides |
+
+`champsObligatoires` accepte le nom affiché ou le slug, sans égard aux accents
+ni aux majuscules. Un champ qui n'existe pas dans la collection est signalé au
+lancement plutôt qu'ignoré :
+
+```json
+"champsObligatoires": ["Ville", "Office"]
+```
+
+Ce que Webflow déclare obligatoire garde son « continuer quand même » ; ce que
+l'étude exige ici n'en a pas.
 
 Le champ `consignes` est le plus utile à l'usage. Exemple :
 

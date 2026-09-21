@@ -114,7 +114,7 @@ async function commandeChamps() {
   console.log(GRAS(`\nCollection « ${structure.nom} » — ${structure.champs.length} champs\n`));
   for (const champ of structure.champs) {
     const marques = [
-      champ.isRequired ? ROUGE('obligatoire') : null,
+      champ.obligatoire ? ROUGE('obligatoire') : null,
       structure.champsExtraits.includes(champ) ? GRIS('lu dans la fiche') : null,
       champ.type === 'Image' || champ.type === 'MultiImage' ? GRIS('photos') : null,
       structure.champsNonGeres.includes(champ) ? JAUNE('non géré') : null,
@@ -190,7 +190,7 @@ async function commandeImport(args) {
   }
 
   const manquants = structure.champsExtraits.filter(
-    (c) => c.isRequired && analyse.fieldData[c.slug] === undefined
+    (c) => c.obligatoire && analyse.fieldData[c.slug] === undefined
   );
   if (manquants.length) {
     console.log(

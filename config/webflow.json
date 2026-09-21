@@ -8,5 +8,9 @@
   "champFichePdf": null,
   "consignes": "",
   "photoLargeurMax": 2400,
-  "photoQualite": 82
+  "photoQualite": 82,
+  "champsObligatoires": [
+    "Ville",
+    "Office"
+  ]
 }

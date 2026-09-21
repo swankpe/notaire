@@ -29,7 +29,7 @@ export async function chargerStructure(config, jeton) {
     throw new Error("Aucune collection configurée. Lancez d'abord : npm run setup");
   }
   const collection = await lireCollection(config.collectionId, jeton);
-  return analyserCollection(collection);
+  return analyserCollection(collection, config.champsObligatoires);
 }
 
 // ── Etape 1 : lire la fiche (rien n'est envoye a Webflow) ─────────────────

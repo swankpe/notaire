@@ -40,6 +40,7 @@ const serveur = spawn(process.execPath, [path.join(racine, 'server.js')], {
     WEBFLOW_COLLECTION_ID: 'col1',
     WEBFLOW_COLLECTION_NOM: 'Biens a vendre',
     WEBFLOW_CHAMP_FICHE_PDF: 'fiche-pdf',
+    CHAMPS_OBLIGATOIRES: 'Notaire, commune',
     PHOTO_LARGEUR_MAX: '1600',
     MOT_DE_PASSE,
     ANTHROPIC_API_KEY: '',
@@ -138,6 +139,18 @@ await verifier('la configuration vient des variables d\'environnement', async ()
   );
   const slugs = config.champs.map((c) => c.slug);
   assert.ok(slugs.includes('prix'));
+
+  // CHAMPS_OBLIGATOIRES remonte jusqu'a l'ecran, avec son origine : la
+  // relecture bloque sur ce que l'etude exige, pas sur ce que Webflow tolere.
+  const commune = config.champs.find((c) => c.slug === 'commune');
+  assert.equal(commune.obligatoire, true);
+  assert.equal(commune.exigeParEtude, true);
+  const notaire = config.champsReference.find((c) => c.slug === 'notaire');
+  assert.equal(notaire.obligatoire, true, 'une reference aussi peut etre exigee');
+  assert.equal(notaire.exigeParEtude, true);
+  const surface = config.champs.find((c) => c.slug === 'surface');
+  assert.equal(surface.obligatoire, false);
+  assert.equal(surface.exigeParEtude, false);
   assert.ok(!slugs.includes('galerie'), 'les champs photos ne sont pas des champs de formulaire');
   assert.ok(!slugs.includes('notaire'), 'les references ont leur propre liste');
   assert.deepEqual(config.champsNonGeres, ['Couleur']);
@@ -146,7 +159,8 @@ await verifier('la configuration vient des variables d\'environnement', async ()
       slug: 'notaire',
       libelle: 'Notaire',
       type: 'Reference',
-      obligatoire: false,
+      obligatoire: true,
+      exigeParEtude: true,
       collectionReferencee: 'col2',
     },
     {
@@ -154,6 +168,7 @@ await verifier('la configuration vient des variables d\'environnement', async ()
       libelle: 'Quartiers',
       type: 'MultiReference',
       obligatoire: false,
+      exigeParEtude: false,
       collectionReferencee: 'col2',
     },
   ]);

@@ -35,6 +35,7 @@ const {
   fabriquerSlug,
   choisirChampImage,
   choisirChampGalerie,
+  reglagesIncoherents,
 } = await import('../src/schema.js');
 const { lireLaFiche, reserverSlug, publierBien } = await import('../src/pipeline.js');
 const { trierNaturellement, preparerPhotos, preparerPhoto } = await import('../src/photos.js');
@@ -83,6 +84,36 @@ await verifier('les champs medias et references sont exclus de la lecture de fic
   assert.ok(!slugs.includes('slug'), 'le slug est calcule, pas lu dans la fiche');
   assert.ok(slugs.includes('prix') && slugs.includes('descriptif'));
   assert.deepEqual(structure.champsNonGeres.map((c) => c.slug), ['couleur']);
+});
+
+await verifier("l'etude peut exiger des champs que Webflow laisse facultatifs", () => {
+  // Par nom affiche, par slug, sans egard aux majuscules : la configuration
+  // est ecrite a la main, elle n'a pas a deviner l'orthographe exacte.
+  const exigeante = analyserCollection(collection, ['NOTAIRE', 'commune']);
+  const parSlug = Object.fromEntries(exigeante.champs.map((c) => [c.slug, c]));
+
+  assert.equal(parSlug.notaire.obligatoire, true, 'reference exigee par l etude');
+  assert.equal(parSlug.notaire.exigeParEtude, true);
+  assert.equal(parSlug.commune.obligatoire, true, 'champ texte exige par l etude');
+
+  assert.equal(parSlug.surface.obligatoire, false, 'le reste ne bouge pas');
+  assert.equal(parSlug.surface.exigeParEtude, false);
+
+  // Ce que Webflow exige deja reste exige, mais ce n'est pas l'etude qui le
+  // demande : l'ecran doit pouvoir distinguer les deux.
+  assert.equal(parSlug.prix.obligatoire, true);
+  assert.equal(parSlug.prix.exigeParEtude, false);
+
+  // Sans liste, rien ne change.
+  assert.equal(analyserCollection(collection).champs.find((c) => c.slug === 'notaire').obligatoire,
+    false);
+});
+
+await verifier("un champ obligatoire absent de la collection est signale", () => {
+  const soucis = reglagesIncoherents(structure, { champsObligatoires: ['Office', 'Notaire'] });
+  assert.equal(soucis.length, 1, 'seul le champ introuvable est signale');
+  assert.match(soucis[0], /Office/);
+  assert.deepEqual(reglagesIncoherents(structure, {}), [], 'sans reglage, aucun avertissement');
 });
 
 await verifier('le champ prix est reconnu, et jamais confondu avec un autre nombre', async () => {

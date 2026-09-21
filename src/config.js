@@ -33,6 +33,9 @@ export const CONFIG_PAR_DEFAUT = {
   champFichePdf: null,
   // Slug du champ prix, affiche dans la liste des biens. null = detection auto.
   champPrix: null,
+  // Noms ou slugs des champs que l'etude veut toujours voir remplis, en plus
+  // de ceux que Webflow declare obligatoires. Exemple : ['Ville', 'Office'].
+  champsObligatoires: [],
   // Consignes libres transmises a Claude pour la lecture des fiches
   // (vocabulaire de l'etude, conventions de redaction, mentions obligatoires...).
   consignes: '',
@@ -88,6 +91,11 @@ export function lireConfig() {
     const valeur = Number(process.env[variable]);
     if (Number.isFinite(valeur) && valeur > 0) environnement[cle] = valeur;
   }
+  // Liste separee par des virgules : CHAMPS_OBLIGATOIRES="Ville, Office".
+  const exiges = process.env.CHAMPS_OBLIGATOIRES?.split(',')
+    .map((n) => n.trim())
+    .filter(Boolean);
+  if (exiges?.length) environnement.champsObligatoires = exiges;
 
   return { ...CONFIG_PAR_DEFAUT, ...partagee, ...locale, ...environnement };
 }
@@ -97,7 +105,7 @@ export function ecrireConfig(config) {
   const aGarder = [
     'siteId', 'siteNom', 'collectionId', 'collectionNom',
     'champImagePrincipale', 'champGalerie', 'champFichePdf', 'champPrix',
-    'consignes', 'photoLargeurMax', 'photoQualite', 'modele',
+    'consignes', 'photoLargeurMax', 'photoQualite', 'modele', 'champsObligatoires',
   ];
   const reglages = {};
   for (const cle of aGarder) {

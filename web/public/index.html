@@ -1318,6 +1318,18 @@
         const manquants = [...etat.champs, ...etat.references].filter(
           (c) => c.obligatoire && fieldData[c.slug] === undefined
         );
+        // Ce que l'étude exige n'a pas d'échappatoire : l'annonce ne part pas
+        // sans. Ce que Webflow seul exige garde son « continuer quand même ».
+        const bloquants = manquants.filter((c) => c.exigeParEtude);
+        if (bloquants.length) {
+          $('resultat').innerHTML = ''; // `avis` empile : sans cela, les essais s'accumulent
+          avis($('resultat'), 'erreur', 'Champs obligatoires non renseignés',
+            bloquants.map((c) => `${c.libelle} : à choisir avant d'enregistrer.`));
+          const premier = document.getElementById('c-' + bloquants[0].slug);
+          premier?.closest('.champ')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          premier?.focus({ preventScroll: true });
+          return;
+        }
         if (manquants.length) {
           const suite = confirm(
             'Champs obligatoires non renseignés :\n· '
