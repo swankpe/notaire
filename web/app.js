@@ -27,6 +27,7 @@ import { lireStyle, redigerPublication, lienDuBien } from '../src/publication.js
 import { espaceDeTravail } from '../src/claude.js';
 import {
   analyserCollection,
+  reglagesIncoherents,
   choisirChampImage,
   choisirChampGalerie,
   choisirChampPrix,
@@ -148,6 +149,10 @@ export function creerApplication() {
         collectionReferencee: c.validations?.collectionId ?? null,
       })),
       champsNonGeres: structure.champsNonGeres.map((c) => c.displayName),
+      // Un reglage qui ne correspond a rien dans la collection se sait au
+      // chargement, pas une fois l'annonce creee : d'ici la, l'utilisateur a
+      // rempli le formulaire en croyant etre protege.
+      reglages: reglagesIncoherents(structure, config),
     });
   });
 

@@ -151,6 +151,7 @@ await verifier('la configuration vient des variables d\'environnement', async ()
   const surface = config.champs.find((c) => c.slug === 'surface');
   assert.equal(surface.obligatoire, false);
   assert.equal(surface.exigeParEtude, false);
+  assert.deepEqual(config.reglages, [], 'ici les deux champs exiges existent bien');
   assert.ok(!slugs.includes('galerie'), 'les champs photos ne sont pas des champs de formulaire');
   assert.ok(!slugs.includes('notaire'), 'les references ont leur propre liste');
   assert.deepEqual(config.champsNonGeres, ['Couleur']);

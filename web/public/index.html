@@ -484,6 +484,9 @@
           avis($('alerteGlobale'), 'alerte', 'Champs à renseigner directement dans Webflow',
             etat.config.champsNonGeres);
         }
+        if (etat.config.reglages?.length) {
+          avis($('alerteGlobale'), 'alerte', 'Configuration à revoir', etat.config.reglages);
+        }
       }
 
       try {
