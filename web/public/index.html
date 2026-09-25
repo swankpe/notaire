@@ -1604,11 +1604,16 @@
       }
 
       // Les photos ne transitent pas par le navigateur pour monter : elles
-      // sont demandées au serveur, qui les relit sur le site à la taille
-      // voulue. La vignette suffit à la relecture, le rendu en veut plus.
-      const adressePhoto = (index, largeur) =>
+      // sont demandées au serveur, qui les relit sur le site.
+      //
+      // Une seule taille pour la vignette et pour le rendu : chaque requête
+      // oblige le serveur à relire la fiche dans Webflow, dont les appels sont
+      // cadencés. Demander deux tailles doublait l'attente ; là, la vignette
+      // remplit le cache et le rendu démarre aussitôt.
+      const LARGEUR_PHOTO = 1600;
+      const adressePhoto = (index) =>
         `/api/bien-photo?itemId=${encodeURIComponent(etat.bienVideo)}`
-        + `&index=${index}&largeur=${largeur}`;
+        + `&index=${index}&largeur=${LARGEUR_PHOTO}`;
 
       function afficherPlans() {
         $('noteVideo').textContent = etat.plans.length
@@ -1704,7 +1709,7 @@
             index: photo,
             nom: photos?.[photo] ?? `photo ${photo + 1}`,
             titre,
-            apercu: adressePhoto(photo, 400),
+            apercu: adressePhoto(photo),
             image: null,
           }));
           afficherPlans();
@@ -1965,7 +1970,7 @@
           await chargerLogo();
           for (const plan of etat.plans) {
             if (plan.image) continue;
-            const reponse = await fetch(adressePhoto(plan.index, 1600), {
+            const reponse = await fetch(adressePhoto(plan.index), {
               credentials: 'same-origin',
             });
             if (!reponse.ok) throw new Error(`Photo « ${plan.nom} » illisible sur le site.`);
@@ -1974,7 +1979,13 @@
           const rognees = etat.plans.filter((p) => partVisible(p.image, l, h) < 0.5).length;
 
           const total = etat.plans.length * dureePlan;
-          const flux = scene.captureStream(30);
+
+          // Capture manuelle : chaque image est réclamée après avoir été
+          // dessinée. Avec la capture automatique, un onglet ralenti laisse
+          // l'enregistreur filmer un canvas figé — la vidéo reste bloquée sur
+          // une photo pendant que le chronomètre avance.
+          const flux = scene.captureStream(0);
+          const pisteVideo = flux.getVideoTracks()[0];
           son = preparerMusique(total / 1000);
           if (son) flux.addTrack(son.piste);
 
@@ -1989,6 +2000,8 @@
 
           enregistreur.start(1000);
           const debut = performance.now();
+          let precedente = debut;
+          let ralenti = 0;
 
           for (;;) {
             const t = performance.now() - debut;
@@ -2012,11 +2025,22 @@
             // Le logo ne clignote pas au fondu : il est posé après, opaque.
             dessinerLogo(ctx, l);
 
+            pisteVideo.requestFrame?.();
+
+            // Un écart anormal entre deux images signe un onglet mis en
+            // veille par le navigateur : on le compte pour le dire à la fin.
+            const maintenant = performance.now();
+            if (maintenant - precedente > 1200) ralenti += maintenant - precedente;
+            precedente = maintenant;
+
             progressionVideo(
               `Image ${rang + 1} sur ${etat.plans.length} — ne quittez pas cet onglet`,
               t / total
             );
-            await new Promise((r) => requestAnimationFrame(r));
+            // `setTimeout` plutôt que `requestAnimationFrame` : un onglet en
+            // arrière-plan arrête complètement le second, alors que le premier
+            // continue, au ralenti. La vidéo sort saccadée plutôt que figée.
+            await new Promise((r) => setTimeout(r, 1000 / 30));
           }
 
           enregistreur.stop();
@@ -2035,6 +2059,14 @@
             </div>`;
           scene.hidden = true;
 
+          if (ralenti > 1500) {
+            avis($('resultatVideo'), 'alerte', 'Vidéo probablement saccadée', [
+              `Le navigateur a mis cet onglet en veille pendant environ `
+              + `${Math.round(ralenti / 1000)} s : des images ont pu rester figées.`,
+              'Refaites la vidéo en laissant cet onglet au premier plan, sans '
+              + "changer d'onglet ni réduire la fenêtre.",
+            ]);
+          }
           if (rognees) {
             avis($('resultatVideo'), 'alerte', 'Recadrage marqué', [
               `${rognees} photo(s) perdent plus de la moitié de leur largeur dans ce format. `

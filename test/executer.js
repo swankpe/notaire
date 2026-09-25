@@ -134,6 +134,52 @@ await verifier("la liste des plans video est remise d'aplomb", async () => {
   assert.deepEqual(ordonnerPlans(undefined, 2).plans.map((p) => p.photo), [0, 1]);
 });
 
+await verifier("le carton de la video ne montre jamais un identifiant Webflow", async () => {
+  const { cartonDuBien } = await import('../src/video.js');
+
+  // La ville est une reference : la fiche n'en garde que l'identifiant.
+  const collection = {
+    fields: [
+      { slug: 'ville', displayName: 'Ville', type: 'Reference',
+        validations: { collectionId: 'col3' } },
+      { slug: 'code-postal', displayName: 'Code postal', type: 'PlainText' },
+      { slug: 'type-de-bien', displayName: 'Type de bien', type: 'Option' },
+      { slug: 'prix', displayName: 'Prix', type: 'Number' },
+    ],
+  };
+  const structure = analyserCollection(collection);
+  const item = {
+    fieldData: {
+      ville: '65c54aadc7528f05c1c9e876',
+      'code-postal': '22300',
+      'type-de-bien': 'Maison',
+      prix: 147900,
+    },
+  };
+
+  const resolu = await cartonDuBien(structure, item, {},
+    async (col, id) => (col === 'col3' && id === '65c54aadc7528f05c1c9e876' ? 'Ploumilliau' : null));
+  assert.deepEqual(resolu,
+    { commune: 'Ploumilliau', codePostal: '22300', typeDeBien: 'Maison', prix: 147900 });
+
+  // Reference introuvable : la ligne reste vide, l'identifiant ne sort pas.
+  const perdu = await cartonDuBien(structure, item, {}, async () => null);
+  assert.equal(perdu.commune, null, "mieux vaut un carton incomplet qu'un identifiant affiche");
+
+  // Garde-fou : meme un champ texte contenant un identifiant est ecarte.
+  const texte = analyserCollection({
+    fields: [{ slug: 'commune', displayName: 'Commune', type: 'PlainText' }],
+  });
+  const brut = await cartonDuBien(
+    texte, { fieldData: { commune: '65C54AADC7528F05C1C9E876' } }, {}, async () => null);
+  assert.equal(brut.commune, null);
+
+  // Et un nom de commune normal passe, lui.
+  const normal = await cartonDuBien(
+    texte, { fieldData: { commune: 'Lannion' } }, {}, async () => null);
+  assert.equal(normal.commune, 'Lannion');
+});
+
 await verifier("un champ obligatoire absent de la collection est signale", () => {
   const soucis = reglagesIncoherents(structure, { champsObligatoires: ['Office', 'Notaire'] });
   assert.equal(soucis.length, 1, 'seul le champ introuvable est signale');

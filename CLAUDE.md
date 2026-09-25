@@ -112,6 +112,25 @@ pas hors d'un vrai navigateur.
   afficherait un prix inférieur à la réalité. La règle est dans les consignes
   de `src/extraction.js` **et** dans `config/publication.json` : les deux
   doivent rester d'accord.
+- **Une valeur de champ n'est pas forcément du texte.** Un champ « Ville » est
+  souvent une **référence** : sa valeur est l'identifiant d'un élément d'une
+  autre collection. Affiché tel quel, on obtient
+  « 65c54aadc7528f05c1c9e876 » en gros sur la vidéo — c'est arrivé.
+  `cartonDuBien` résout la référence, et un garde-fou écarte tout ce qui
+  ressemble à un identifiant (24 caractères hexadécimaux), même hors champ de
+  référence.
+- **Le rendu vidéo ne dépend plus de `requestAnimationFrame`.** Un onglet en
+  arrière-plan voit son rAF **complètement arrêté** par le navigateur, pendant
+  que `MediaRecorder` continue de filmer en temps réel : la vidéo reste figée
+  sur une image pendant que le chronomètre avance. La boucle est cadencée par
+  `setTimeout` (ralenti mais jamais arrêté) et chaque image est réclamée
+  explicitement — `captureStream(0)` puis `requestFrame()`. Un écart anormal
+  entre deux images est compté et signalé à la fin.
+- **Une requête `/api/bien-photo` relit la fiche dans Webflow.** Ne rien y
+  ajouter qui demande d'autres lectures : le carton, lui, est calculé dans
+  `/api/pieces`, appelé une fois. Et le navigateur demande **une seule taille**
+  (`LARGEUR_PHOTO`) pour la vignette et pour le rendu : deux tailles doublaient
+  le nombre de lectures, donc l'attente.
 - **Le carton d'ouverture ne devine rien non plus.** Commune, code postal et
   type de bien sont reconnus à leur intitulé (`choisirChampParNom`) ou imposés
   par configuration. Un champ absent fait disparaître sa ligne, et
@@ -142,9 +161,6 @@ pas hors d'un vrai navigateur.
   dans l'enregistrement via `MediaStreamDestination`. Elle ne part jamais vers
   le serveur, et aucun fichier musical n'est versionné — la licence est
   l'affaire de l'étude.
-- Le rendu vidéo tourne sur `requestAnimationFrame` : dans un onglet en
-  arrière-plan, le navigateur ralentit la cadence et la vidéo sort hachée. D'où
-  l'aperçu visible pendant le rendu et le « ne quittez pas cet onglet ».
 - `exigerSession` échoue **fermé** (503) quand `surVercel && !protectionActive()`.
   Ne pas assouplir : sur Vercel une variable ajoutée après coup n'est prise en
   compte qu'au déploiement suivant, et le fail-open serait silencieux.

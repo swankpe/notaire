@@ -55,24 +55,58 @@ const nomDepuisUrl = (url) => {
  * Les champs sont reconnus a leur intitule, comme le champ prix, et un slug
  * peut etre impose dans la configuration : chaque etude nomme les siens.
  */
-export function cartonDuBien(structure, item, config) {
+/**
+ * Un identifiant d'element Webflow : 24 caracteres hexadecimaux. Un champ de
+ * reference ne contient que ca, et il n'a rien a faire sur un carton.
+ */
+const ressembleAUnIdentifiant = (texte) => /^[0-9a-f]{24}$/i.test(String(texte).trim());
+
+/**
+ * Ce qui s'affiche sur l'image d'ouverture : la commune, ce qu'on vend, le
+ * prix. Tout est relu dans la fiche du site — un carton d'annonce notariale
+ * ne s'invente pas. Un champ absent sort a `null` et la ligne ne s'affiche
+ * simplement pas.
+ *
+ * Les champs sont reconnus a leur intitule, comme le champ prix, et un slug
+ * peut etre impose dans la configuration : chaque etude nomme les siens.
+ *
+ * La ville est souvent un champ de reference : sa valeur est l'identifiant
+ * d'un element d'une autre collection, pas un nom. `resoudreReference` va y
+ * chercher le libelle. A defaut, la ligne reste vide — mieux vaut un carton
+ * incomplet qu'un « 65c54aadc7528f05c1c9e876 » en gros sur la video.
+ */
+export async function cartonDuBien(structure, item, config, resoudreReference) {
   const donnees = item?.fieldData ?? {};
-  const valeur = (champ) => {
+
+  const lire = async (champ) => {
     if (!champ) return null;
     const brut = donnees[champ.slug];
     if (brut === undefined || brut === null || brut === '') return null;
-    return typeof brut === 'string' ? brut.trim() || null : brut;
+
+    if (champ.type === 'Reference') {
+      const nom = await resoudreReference?.(champ.validations?.collectionId, brut);
+      return nom && !ressembleAUnIdentifiant(nom) ? nom : null;
+    }
+    // Une multi-reference porte plusieurs valeurs : on ne choisit pas a la
+    // place de l'utilisateur.
+    if (champ.type === 'MultiReference') return null;
+
+    if (typeof brut === 'number') return brut;
+    const texte = String(brut).trim();
+    // Garde-fou : meme hors champ de reference, rien qui ressemble a un
+    // identifiant ne part a l'ecran.
+    return texte && !ressembleAUnIdentifiant(texte) ? texte : null;
   };
 
   const champPrix = choisirChampPrix(structure, config.champPrix);
-  const prix = valeur(champPrix);
+  const prix = donnees[champPrix?.slug];
 
   return {
-    commune: valeur(choisirChampParNom(structure, config.champCommune,
+    commune: await lire(choisirChampParNom(structure, config.champCommune,
       ['commune', 'ville', 'localite'])),
-    codePostal: valeur(choisirChampParNom(structure, config.champCodePostal,
+    codePostal: await lire(choisirChampParNom(structure, config.champCodePostal,
       ['code postal', 'code-postal', 'codepostal', 'cp'])),
-    typeDeBien: valeur(choisirChampParNom(structure, config.champTypeDeBien,
+    typeDeBien: await lire(choisirChampParNom(structure, config.champTypeDeBien,
       ['type de bien', 'type-de-bien', 'typedebien', 'nature'])),
     // Le prix affiche est celui de la fiche, honoraires de negociation
     // compris : c'est le seul que l'etude publie.

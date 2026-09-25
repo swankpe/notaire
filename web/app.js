@@ -390,24 +390,27 @@ export function creerApplication() {
   // rien, il demande. La video, elle, se fabrique dans le navigateur — un
   // fichier video ne passerait pas la limite de 4,5 Mo par requete.
 
-  /** Les photos d'un bien, relues dans Webflow a chaque appel. */
-  async function photosDeLItem(itemId) {
+  /**
+   * Le bien et ses photos, relus dans Webflow a chaque appel — aucun etat
+   * n'est garde entre deux requetes.
+   *
+   * Le carton n'est pas calcule ici : il demande une lecture de plus par champ
+   * de reference, et la route qui sert les photos n'en a pas besoin. Une photo
+   * demandee dix fois ferait dix lectures inutiles, chacune cadencee.
+   */
+  async function contexteDuBien(itemId) {
     const config = lireConfig();
     const jeton = jetonWebflow();
     const structure = await chargerStructure(config, jeton);
     const item = await lireItem(config.collectionId, itemId, jeton);
-    return {
-      photos: photosDuBien(structure, item, config),
-      carton: cartonDuBien(structure, item, config),
-      config,
-    };
+    return { config, jeton, structure, item, photos: photosDuBien(structure, item, config) };
   }
 
   app.post('/api/pieces', async (requete, reponse) => {
     const { itemId } = requete.body ?? {};
     if (!itemId) return reponse.status(400).json({ erreur: 'Aucun bien choisi.' });
 
-    const { photos, carton, config } = await photosDeLItem(itemId);
+    const { photos, config, jeton, structure, item } = await contexteDuBien(itemId);
     if (!photos.length) {
       return reponse.status(400).json({
         erreur: "Ce bien n'a aucune photo sur le site. Publiez-les d'abord dans le CMS.",
@@ -426,6 +429,14 @@ export function creerApplication() {
       modele: config.modele,
       consignes: config.consignes,
     });
+
+    // La ville, l'office... sont des elements d'autres collections : la fiche
+    // n'en garde que l'identifiant, le carton veut le libelle.
+    const carton = await cartonDuBien(structure, item, config, async (collectionId, id) => {
+      if (!collectionId || typeof id !== 'string') return null;
+      const items = await listerItems(collectionId, jeton);
+      return items.find((i) => i.id === id)?.nom ?? null;
+    });
     reponse.json({ ...resultat, photos: photos.map((p) => p.nom), carton });
   });
 
@@ -439,7 +450,7 @@ export function creerApplication() {
     if (!itemId) return reponse.status(400).json({ erreur: 'Aucun bien choisi.' });
 
     const rang = Number(index);
-    const { photos } = await photosDeLItem(itemId);
+    const { photos } = await contexteDuBien(itemId);
     if (!Number.isInteger(rang) || rang < 0 || rang >= photos.length) {
       return reponse.status(404).json({ erreur: 'Photo introuvable.' });
     }
