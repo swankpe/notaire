@@ -42,7 +42,7 @@ structure actuelle.
 | `src/extraction.js` | lecture de la fiche PDF via l'API Claude (document base64) |
 | `src/publication.js` | rédaction du post Facebook ; le style vient de `config/publication.json`, versionné |
 | `src/photos.js` | sharp : redressement, redimensionnement, JPEG, EXIF supprimés |
-| `src/video.js` | nomme les pièces et propose un ordre de visite ; `ordonnerPlans` remet la réponse d'aplomb |
+| `src/video.js` | lit les photos du bien sur le site, nomme les pièces et propose un ordre de visite ; `ordonnerPlans` remet la réponse d'aplomb |
 | `src/pipeline.js` | les quatre étapes, indépendantes ; `publierBien` les chaîne pour la CLI |
 | `src/cli.js` | `setup`, `champs`, `import`, `vercel` |
 
@@ -101,6 +101,11 @@ pas hors d'un vrai navigateur.
   oublier une photo ou en citer deux fois. `ordonnerPlans` garantit que chaque
   photo revient une fois et une seule ; une photo rattrapée part **sans texte**,
   jamais avec un titre deviné, et l'utilisateur est prévenu.
+- **`/api/bien-photo` ne prend jamais d'adresse.** Elle reçoit un identifiant
+  d'élément et un index, relit l'URL dans Webflow, puis télécharge. Accepter
+  une URL du navigateur ferait du serveur un relais vers n'importe quelle
+  machine — y compris le réseau interne de l'hébergeur. Ne pas « simplifier »
+  en passant l'URL directement.
 - **Le texte du post ne vient jamais des photos.** Une seule page produit le
   post et la vidéo, mais les deux sources restent séparées : le texte vient de
   la fiche du CMS, la vidéo des photos déposées. Rédiger d'après une image

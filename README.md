@@ -183,19 +183,21 @@ en local (`npm start`) reste gratuit et strictement équivalent.
 
 ## Publier sur Facebook : le texte et la vidéo
 
-Second onglet de l'outil. Une seule page produit les deux morceaux d'une
-publication : **le texte**, tiré de la fiche du bien dans le CMS, et **la
-vidéo diaporama**, montée à partir des photos que vous déposez.
+Second onglet de l'outil. **Vous choisissez un bien, rien d'autre.** Tout
+vient de sa fiche sur le site : le texte de sa description, la vidéo de ses
+photos déjà publiées.
 
-1. **Choisissez le bien** — c'est lui qui fournit le texte.
-2. **Déposez les photos** — ce sont elles qui font la vidéo.
-3. **Un seul bouton** lance les deux analyses en même temps : la rédaction du
-   post et la reconnaissance des pièces. Le bouton s'adapte : sans photos il
-   ne propose que le post, sans bien que les pièces.
-4. Relisez le texte, corrigez les titres, générez la vidéo.
+1. **Choisissez le bien.**
+2. **Un seul bouton** lance les deux analyses en même temps : la rédaction du
+   post, et la reconnaissance des pièces sur les photos du site.
+3. Relisez le texte, corrigez les titres, générez la vidéo.
 
 L'un n'attend pas l'autre. Si la rédaction échoue, la reconnaissance des
 pièces aboutit quand même, et inversement.
+
+Le bien doit donc **être publié avec ses photos avant** de faire la vidéo —
+c'est le premier onglet qui s'en charge. Un bien sans photo sur le site le dit
+franchement plutôt que de produire une vidéo vide.
 
 ### Le texte
 
@@ -231,18 +233,23 @@ notariale ne se rédige pas d'après une image.
 
 ### La vidéo
 
-Chaque photo s'affiche avec le nom de la pièce incrusté en bas à gauche, dans
-un cadre blanc filaire ; les plans s'enchaînent en fondu. Claude propose un
+Les photos sont celles du bien sur le site : la photo principale d'abord, puis
+la galerie — et si la principale figure aussi dans la galerie, elle ne passe
+qu'une fois. Chaque photo s'affiche avec le nom de la pièce incrusté en bas à
+gauche, dans un cadre blanc filaire ; les plans s'enchaînent en fondu. Claude propose un
 titre pour chacune (« Cuisine », « Grange », « Terrain »…) et les remet dans un
 ordre de visite — on arrive par la façade, on traverse la maison, on ressort
 par les annexes et le terrain.
 
 Quelques points à connaître :
 
-- **Tout se passe dans votre navigateur.** Une vidéo de trente secondes pèse
-  dix fois la limite d'une requête Vercel : elle ne pourrait pas être fabriquée
-  sur le serveur. Seules les photos réduites à 512 px font l'aller-retour, le
-  temps de l'analyse.
+- **Le montage se fait dans votre navigateur.** Une vidéo de trente secondes
+  pèse dix fois la limite d'une requête Vercel : elle ne pourrait pas être
+  fabriquée sur le serveur. Celui-ci se contente de relire les photos sur le
+  site et de les renvoyer à la taille utile — 512 px pour reconnaître les
+  pièces, 1600 px pour le montage.
+- **Vous pouvez retirer ou réordonner les photos** du montage sans toucher à
+  celles du site : l'onglet ne modifie jamais la fiche Webflow.
 - **Ne quittez pas l'onglet pendant le rendu.** Un navigateur ralentit les
   onglets en arrière-plan et la vidéo sortirait hachée. Le rendu dure le temps
   de la vidéo : trente secondes de vidéo, trente secondes d'attente.

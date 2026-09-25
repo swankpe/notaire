@@ -1,6 +1,11 @@
 // Faux serveur Webflow pour les tests : reproduit les points d'entree utilises
 // par l'outil (sites, collections, medias en deux temps, creation d'element).
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import express from 'express';
+
+const ici = path.dirname(fileURLToPath(import.meta.url));
 
 export function demarrerFauxWebflow(port = 4599) {
   const app = express();
@@ -23,6 +28,15 @@ export function demarrerFauxWebflow(port = 4599) {
     }
     journal.push('POST /faux-s3 (' + champs.join(',') + ')');
     reponse.status(201).send('');
+  });
+
+  // Les photos publiees sont publiques, comme sur le CDN de Webflow : cette
+  // route passe avant le controle du jeton.
+  app.get('/media/:nom', (requete, reponse) => {
+    journal.push(`GET ${requete.path}`);
+    const chemin = path.join(ici, 'fixtures', 'photo-1.jpg');
+    if (!fs.existsSync(chemin)) return reponse.status(404).end();
+    reponse.type('image/jpeg').send(fs.readFileSync(chemin));
   });
 
   app.use((requete, reponse, suite) => {
@@ -86,12 +100,20 @@ export function demarrerFauxWebflow(port = 4599) {
   ];
 
   // Deux biens deja en ligne, pour la liste de l'onglet Facebook.
+  // Photos deja publiees : la principale est aussi dans la galerie, comme
+  // souvent dans Webflow — l'outil ne doit pas la compter deux fois.
+  const media = (nom) => ({ url: `http://127.0.0.1:${port}/media/${nom}`, alt: nom });
   items.push(
     { id: 'ancien1', isDraft: false, createdOn: '2026-01-02',
-      fieldData: { name: 'Maison a Plouha', slug: 'maison-plouha', prix: 198000, notaire: 'ref1' } },
+      fieldData: {
+        name: 'Maison a Plouha', slug: 'maison-plouha', prix: 198000, notaire: 'ref1',
+        'photo-principale': media('facade.jpg'),
+        galerie: [media('facade.jpg'), media('sejour.jpg'), media('jardin.jpg')],
+      } },
     { id: 'ancien2', isDraft: false, createdOn: '2026-01-01',
       fieldData: { name: 'Longere a Lannion', slug: 'longere-lannion', prix: 264500, notaire: 'ref2' } }
   );
+
 
   app.get('/v2/collections/:id/items', (requete, reponse) => {
     const lot = requete.params.id === 'col2' ? referencables : items;

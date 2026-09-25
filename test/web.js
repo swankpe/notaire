@@ -70,7 +70,12 @@ async function appel(chemin, options = {}) {
   });
   const miam = reponse.headers.get('set-cookie');
   if (miam) cookie = miam.split(';')[0];
-  return { statut: reponse.status, corps: await reponse.json().catch(() => ({})) };
+  // Les routes rendent du JSON, sauf celle qui sert les photos du bien.
+  const type = reponse.headers.get('content-type') ?? '';
+  const corps = type.includes('json')
+    ? await reponse.json().catch(() => ({}))
+    : Buffer.from(await reponse.arrayBuffer());
+  return { statut: reponse.status, entetes: reponse.headers, corps };
 }
 
 for (let i = 0; i < 60; i++) {
@@ -389,19 +394,50 @@ await verifier('sans cle Claude, la redaction remonte un message clair', async (
 
 console.log('\nVideo diaporama');
 
-await verifier('la reconnaissance des pieces exige des photos', async () => {
-  const { statut, corps } = await appel('/api/pieces', { method: 'POST', body: new FormData() });
+const enJson = (corps) => ({
+  method: 'POST',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify(corps),
+});
+
+await verifier('la reconnaissance des pieces exige un bien', async () => {
+  const { statut, corps } = await appel('/api/pieces', enJson({}));
   assert.equal(statut, 400);
-  assert.match(corps.erreur, /photo/i);
+  assert.match(corps.erreur, /bien/i);
+});
+
+await verifier('un bien sans photo sur le site est signale, pas devine', async () => {
+  const { statut, corps } = await appel('/api/pieces', enJson({ itemId: 'ancien2' }));
+  assert.equal(statut, 400);
+  assert.match(corps.erreur, /aucune photo/i);
 });
 
 await verifier('sans cle Claude, la reconnaissance remonte un message clair', async () => {
-  const formulaire = new FormData();
-  formulaire.append('photos', fichier('photo-1.jpg', 'image/jpeg'), 'photo-1.jpg');
-  formulaire.append('photos', fichier('photo-2.jpg', 'image/jpeg'), 'photo-2.jpg');
-  const { statut, corps } = await appel('/api/pieces', { method: 'POST', body: formulaire });
+  const { statut, corps } = await appel('/api/pieces', enJson({ itemId: 'ancien1' }));
   assert.equal(statut, 500);
   assert.match(corps.erreur, /ANTHROPIC_API_KEY/);
+});
+
+await verifier('les photos du bien viennent du site, sans doublon', async () => {
+  // La principale figure aussi dans la galerie : trois photos, pas quatre.
+  const { statut, entetes, corps } = await appel('/api/bien-photo?itemId=ancien1&index=0&largeur=600');
+  assert.equal(statut, 200);
+  assert.match(entetes.get('content-type'), /image\/jpeg/);
+  assert.ok(corps.length > 1000, 'une vraie image est renvoyee');
+
+  const troisieme = await appel('/api/bien-photo?itemId=ancien1&index=2&largeur=600');
+  assert.equal(troisieme.statut, 200);
+  const quatrieme = await appel('/api/bien-photo?itemId=ancien1&index=3&largeur=600');
+  assert.equal(quatrieme.statut, 404, 'la photo principale ne compte pas deux fois');
+});
+
+await verifier('aucune adresse ne vient du navigateur', async () => {
+  // La route ne prend qu'un index : pas moyen de lui faire telecharger
+  // autre chose que les photos de l'element.
+  const { statut } = await appel('/api/bien-photo?itemId=ancien1&index=-1');
+  assert.equal(statut, 404);
+  const sansBien = await appel('/api/bien-photo?index=0');
+  assert.equal(sansBien.statut, 400);
 });
 
 await verifier('la deconnexion ferme la session', async () => {

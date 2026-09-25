@@ -376,7 +376,7 @@
 
         <div id="vueFacebook" hidden>
           <section>
-            <h2>1 · Le bien et ses photos</h2>
+            <h2>1 · Le bien</h2>
             <div id="filtresBiens"></div>
             <div class="champ">
               <label for="choixBien">
@@ -384,21 +384,15 @@
               </label>
               <select id="choixBien" disabled><option>Chargement…</option></select>
             </div>
-
-            <div class="depot" id="zoneVideo">
-              <strong>Glissez ici les photos du bien</strong>
-              <span>ou cliquez pour les choisir — pour la vidéo</span>
-            </div>
-            <input type="file" id="selecteurVideo" multiple accept="image/*" hidden />
             <div class="note" id="noteVideo" style="margin-top: 10px"></div>
 
             <div class="barre-actions">
               <span class="note" id="noteFacebook">
-                Le texte vient de la fiche du CMS, la vidéo de ces photos.
-                L'un n'attend pas l'autre : vous pouvez ne demander que l'un des deux.
+                Tout vient de la fiche du site : le texte de sa description,
+                la vidéo de ses photos. Rien à déposer.
               </span>
               <button class="principal" id="boutonAnalyserFb" disabled>
-                Rédiger le post et reconnaître les pièces
+                Rédiger le post et monter la vidéo
               </button>
             </div>
             <div id="avisVideo"></div>
@@ -718,20 +712,23 @@
         majBoutonAnalyse();
       }
 
-      // Le texte et la vidéo ne se doivent rien : le premier vient de la fiche
-      // du CMS, la seconde des photos déposées. On peut n'avoir que l'un.
+      // Le texte et la vidéo viennent tous deux de la fiche du site : sa
+      // description pour l'un, ses photos pour l'autre.
       function majBoutonAnalyse() {
-        const bien = Boolean($('choixBien').value);
-        const photos = etat.plans.length > 0;
-        const bouton = $('boutonAnalyserFb');
-        bouton.disabled = !bien && !photos;
-        bouton.textContent =
-          bien && !photos ? 'Rédiger le post'
-          : photos && !bien ? 'Reconnaître les pièces'
-          : 'Rédiger le post et reconnaître les pièces';
+        $('boutonAnalyserFb').disabled = !$('choixBien').value;
       }
 
-      $('choixBien').addEventListener('change', majBoutonAnalyse);
+      // Changer de bien change les photos : le montage précédent n'a plus lieu
+      // d'être à l'écran.
+      $('choixBien').addEventListener('change', () => {
+        etat.plans = [];
+        etat.bienVideo = null;
+        $('avisVideo').innerHTML = '';
+        $('resultatVideo').innerHTML = '';
+        $('etapePost').hidden = true;
+        afficherPlans();
+        majBoutonAnalyse();
+      });
 
       $('boutonAnalyserFb').addEventListener('click', async () => {
         const itemId = $('choixBien').value;
@@ -742,10 +739,7 @@
         $('avisVideo').innerHTML = '';
 
         // Les deux partent ensemble : deux appels, une seule attente.
-        const travaux = [];
-        if (itemId) travaux.push(redigerPost(itemId));
-        if (etat.plans.length) travaux.push(reconnaitrePieces());
-        await Promise.all(travaux);
+        await Promise.all([redigerPost(itemId), reconnaitrePieces(itemId)]);
 
         bouton.textContent = libelle;
         majBoutonAnalyse();
@@ -1562,38 +1556,20 @@
       const ZOOM_FIN = 1.1;
 
       etat.plans = [];
+      etat.bienVideo = null;
 
-      async function ajouterPlans(fichiers) {
-        const soucis = [];
-        const nouveaux = [...fichiers].filter(
-          (f) => estImage(f) && !etat.plans.some((p) => p.nom === f.name && p.taille === f.size)
-        );
-        for (const fichier of nouveaux) {
-          try {
-            // Deux tailles : l'une pour le rendu, l'autre pour l'analyse.
-            // Inutile d'envoyer 2400 px à Claude pour reconnaître une cuisine.
-            const rendu = await reduire(fichier, 1600, 88);
-            const analyse = await reduire(fichier, 512, 60);
-            etat.plans.push({
-              nom: fichier.name,
-              taille: fichier.size,
-              rendu,
-              analyse,
-              apercu: URL.createObjectURL(rendu),
-              titre: '',
-              image: null,
-            });
-          } catch {
-            soucis.push(messageIllisible(fichier.name));
-          }
-        }
-        return soucis;
-      }
+      // Les photos ne transitent pas par le navigateur pour monter : elles
+      // sont demandées au serveur, qui les relit sur le site à la taille
+      // voulue. La vignette suffit à la relecture, le rendu en veut plus.
+      const adressePhoto = (index, largeur) =>
+        `/api/bien-photo?itemId=${encodeURIComponent(etat.bienVideo)}`
+        + `&index=${index}&largeur=${largeur}`;
 
       function afficherPlans() {
         $('noteVideo').textContent = etat.plans.length
-          ? `${etat.plans.length} photo(s) · ${etat.plans.length * Number($('dureePhoto').value)} s de vidéo`
-          : 'Aucune photo pour le moment.';
+          ? `${etat.plans.length} photo(s) du site · `
+            + `${etat.plans.length * Number($('dureePhoto').value)} s de vidéo`
+          : '';
         $('etapeMontage').hidden = etat.plans.length === 0;
         majBoutonAnalyse();
 
@@ -1662,28 +1638,27 @@
         planGlisse = null;
       });
 
-      brancherDepot('zoneVideo', 'selecteurVideo', async (fichiers) => {
-        $('avisVideo').innerHTML = '';
-        const soucis = await ajouterPlans(fichiers);
-        if (soucis.length) avis($('avisVideo'), 'alerte', 'Photos ignorées', soucis);
-        afficherPlans();
-      });
-
       $('dureePhoto').addEventListener('change', afficherPlans);
 
       // ── Reconnaissance des pièces ─────────────────────────────────────
-      async function reconnaitrePieces() {
+      async function reconnaitrePieces(itemId) {
         try {
-          const formulaire = new FormData();
-          for (const plan of etat.plans) formulaire.append('photos', plan.analyse, plan.nom);
-          const { plans, remarques } = await appel('/api/pieces', {
+          const { plans, remarques, photos } = await appel('/api/pieces', {
             method: 'POST',
-            body: formulaire,
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ itemId }),
           });
 
           // L'ordre proposé est appliqué ; le serveur garantit que chaque
           // photo revient une fois et une seule.
-          etat.plans = plans.map(({ photo, titre }) => ({ ...etat.plans[photo], titre }));
+          etat.bienVideo = itemId;
+          etat.plans = plans.map(({ photo, titre }) => ({
+            index: photo,
+            nom: photos?.[photo] ?? `photo ${photo + 1}`,
+            titre,
+            apercu: adressePhoto(photo, 400),
+            image: null,
+          }));
           afficherPlans();
           if (remarques.length) avis($('avisVideo'), 'alerte', 'À vérifier', remarques);
           else avis($('avisVideo'), 'ok', 'Pièces reconnues', ['Corrigez les titres si besoin, puis générez la vidéo.']);
@@ -1815,7 +1790,12 @@
           progressionVideo('Préparation des images…', 0);
           await chargerLogo();
           for (const plan of etat.plans) {
-            if (!plan.image) plan.image = await createImageBitmap(plan.rendu);
+            if (plan.image) continue;
+            const reponse = await fetch(adressePhoto(plan.index, 1600), {
+              credentials: 'same-origin',
+            });
+            if (!reponse.ok) throw new Error(`Photo « ${plan.nom} » illisible sur le site.`);
+            plan.image = await createImageBitmap(await reponse.blob());
           }
           const rognees = etat.plans.filter((p) => partVisible(p.image, l, h) < 0.5).length;
 

@@ -25,7 +25,7 @@ import {
   lireItem,
 } from '../src/webflow.js';
 import { lireStyle, redigerPublication, lienDuBien } from '../src/publication.js';
-import { nommerLesPieces } from '../src/video.js';
+import { nommerLesPieces, photosDuBien, telechargerPhoto } from '../src/video.js';
 import { espaceDeTravail } from '../src/claude.js';
 import {
   analyserCollection,
@@ -384,26 +384,71 @@ export function creerApplication() {
     });
   });
 
-  // ── Video diaporama : nommer les pieces ─────────────────────────────────
+  // ── Video diaporama ─────────────────────────────────────────────────────
   //
-  // La video se fabrique dans le navigateur ; le serveur ne voit que des
-  // photos reduites a l'aller et une liste de titres au retour.
-  app.post(
-    '/api/pieces',
-    televersement.array('photos', 40),
-    async (requete, reponse) => {
-      const config = lireConfig();
-      const images = (requete.files ?? []).map((f) => f.buffer);
-      if (!images.length) {
-        return reponse.status(400).json({ erreur: 'Aucune photo reçue.' });
-      }
-      const resultat = await nommerLesPieces(images, {
-        modele: config.modele,
-        consignes: config.consignes,
+  // Les photos sont celles deja publiees sur le site : le navigateur n'envoie
+  // rien, il demande. La video, elle, se fabrique dans le navigateur — un
+  // fichier video ne passerait pas la limite de 4,5 Mo par requete.
+
+  /** Les photos d'un bien, relues dans Webflow a chaque appel. */
+  async function photosDeLItem(itemId) {
+    const config = lireConfig();
+    const jeton = jetonWebflow();
+    const structure = await chargerStructure(config, jeton);
+    const item = await lireItem(config.collectionId, itemId, jeton);
+    return { photos: photosDuBien(structure, item, config), config };
+  }
+
+  app.post('/api/pieces', async (requete, reponse) => {
+    const { itemId } = requete.body ?? {};
+    if (!itemId) return reponse.status(400).json({ erreur: 'Aucun bien choisi.' });
+
+    const { photos, config } = await photosDeLItem(itemId);
+    if (!photos.length) {
+      return reponse.status(400).json({
+        erreur: "Ce bien n'a aucune photo sur le site. Publiez-les d'abord dans le CMS.",
       });
-      reponse.json(resultat);
     }
-  );
+
+    // Reduites au minimum utile : reconnaitre une cuisine ne demande pas
+    // 2400 px, et c'est autant de moins a transmettre a Claude.
+    const images = [];
+    for (const photo of photos) {
+      const prete = await telechargerPhoto(photo.url, { largeurMax: 512, qualite: 60 });
+      images.push(prete.contenu);
+    }
+
+    const resultat = await nommerLesPieces(images, {
+      modele: config.modele,
+      consignes: config.consignes,
+    });
+    reponse.json({ ...resultat, photos: photos.map((p) => p.nom) });
+  });
+
+  /**
+   * Une photo du bien, a la taille demandee. L'index designe une photo de
+   * l'element : aucune adresse ne vient du navigateur, sans quoi la route
+   * servirait de relais vers n'importe quel serveur.
+   */
+  app.get('/api/bien-photo', async (requete, reponse) => {
+    const { itemId, index, largeur } = requete.query;
+    if (!itemId) return reponse.status(400).json({ erreur: 'Aucun bien choisi.' });
+
+    const rang = Number(index);
+    const { photos } = await photosDeLItem(itemId);
+    if (!Number.isInteger(rang) || rang < 0 || rang >= photos.length) {
+      return reponse.status(404).json({ erreur: 'Photo introuvable.' });
+    }
+
+    const largeurMax = Math.min(2000, Math.max(200, Number(largeur) || 1600));
+    const prete = await telechargerPhoto(photos[rang].url, { largeurMax, qualite: 88 });
+    reponse
+      .type(prete.typeMime)
+      // Une photo publiee ne change pas : inutile de la reprendre a chaque
+      // rendu, et le montage d'une vidéo en redemande plusieurs fois.
+      .set('Cache-Control', 'private, max-age=3600')
+      .send(prete.contenu);
+  });
 
   app.use((erreur, requete, reponse, suite) => {
     console.error(erreur);

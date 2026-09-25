@@ -6,6 +6,56 @@
 // ne fait que l'analyse — quelques dizaines de kilo-octets de photos a
 // l'aller, une liste de titres au retour.
 import { clientClaude, messageClaude } from './claude.js';
+import { choisirChampImage, choisirChampGalerie } from './schema.js';
+import { preparerPhoto } from './photos.js';
+
+/**
+ * Les photos d'un bien, telles qu'elles sont deja sur le site : la photo
+ * principale d'abord, puis la galerie. La principale est souvent reprise dans
+ * la galerie — on ne la montre pas deux fois.
+ */
+export function photosDuBien(structure, item, config) {
+  const donnees = item?.fieldData ?? {};
+  const champImage = choisirChampImage(structure, config.champImagePrincipale);
+  const champGalerie = choisirChampGalerie(structure, config.champGalerie);
+
+  const photos = [];
+  const vues = new Set();
+  const ajouter = (media) => {
+    const url = media?.url;
+    if (!url || vues.has(url)) return;
+    vues.add(url);
+    photos.push({ url, nom: media.alt || nomDepuisUrl(url) });
+  };
+
+  if (champImage) ajouter(donnees[champImage.slug]);
+  for (const media of donnees[champGalerie?.slug] ?? []) ajouter(media);
+  return photos;
+}
+
+const nomDepuisUrl = (url) => {
+  try {
+    return decodeURIComponent(new URL(url).pathname.split('/').pop()) || 'photo';
+  } catch {
+    return 'photo';
+  }
+};
+
+/**
+ * Recupere une photo du site et la remet a la taille voulue.
+ *
+ * L'URL n'est jamais fournie par l'appelant : elle est relue dans l'element
+ * Webflow a chaque fois. Une route qui telechargerait l'adresse qu'on lui
+ * passe ferait du serveur un relais vers n'importe quoi.
+ */
+export async function telechargerPhoto(url, { largeurMax, qualite }) {
+  const reponse = await fetch(url);
+  if (!reponse.ok) {
+    throw new Error(`Photo inaccessible sur le site (${reponse.status}).`);
+  }
+  const brut = Buffer.from(await reponse.arrayBuffer());
+  return preparerPhoto(brut, { largeurMax, qualite });
+}
 
 const CONSIGNES = `Tu prepares une video diaporama pour l'annonce immobiliere d'une etude notariale.
 
