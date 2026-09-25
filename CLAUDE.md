@@ -101,6 +101,13 @@ pas hors d'un vrai navigateur.
   oublier une photo ou en citer deux fois. `ordonnerPlans` garantit que chaque
   photo revient une fois et une seule ; une photo rattrapée part **sans texte**,
   jamais avec un titre deviné, et l'utilisateur est prévenu.
+- **L'habillage vidéo n'est pas une invention.** Cadre blanc filaire en bas à
+  gauche, titre clair centré, logo en haut à droite, format carré : tout vient
+  des montages que l'étude publie déjà. Les proportions sont dans la constante
+  `CADRE`. Ne pas « améliorer » sans un nouveau montage de référence.
+- La photo **remplit toujours le cadre**, centrée. Une version posée sur fond
+  flou a été essayée puis retirée : l'étude préfère zoomer que laisser des
+  bandes.
 - **`MediaRecorder` : demander H.264, accepter moins.** Facebook veut du MP4
   H.264 ; les navigateurs sans codec propriétaire n'en ont pas et produisent du
   VP9, voire du WebM. Le code parcourt `CODECS` par ordre de préférence et

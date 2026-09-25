@@ -4,6 +4,7 @@
 //
 // Les requetes restent petites (limite de 4,5 Mo par requete sur Vercel) :
 // la fiche PDF part seule, puis les photos une par une.
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
@@ -154,6 +155,9 @@ export function creerApplication() {
       // chargement, pas une fois l'annonce creee : d'ici la, l'utilisateur a
       // rempli le formulaire en croyant etre protege.
       reglages: reglagesIncoherents(structure, config),
+      // Le logo de l'etude, incruste dans les videos. Sa presence se dit ici :
+      // le navigateur ne va pas le chercher pour rien et la console reste nette.
+      logo: fs.existsSync(path.join(ici, 'public', 'logo.png')),
     });
   });
 

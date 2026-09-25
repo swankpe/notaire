@@ -406,8 +406,8 @@
               <div class="champ">
                 <label for="formatVideo">Format</label>
                 <select id="formatVideo">
-                  <option value="9:16" selected>Vertical 9:16 — Reels, Stories</option>
-                  <option value="1:1">Carré 1:1 — fil d'actualité</option>
+                  <option value="1:1" selected>Carré 1:1 — fil d'actualité</option>
+                  <option value="9:16">Vertical 9:16 — Reels, Stories</option>
                   <option value="16:9">Paysage 16:9 — site, YouTube</option>
                 </select>
               </div>
@@ -415,8 +415,8 @@
                 <label for="dureePhoto">Durée par photo</label>
                 <select id="dureePhoto">
                   <option value="2">2 secondes — rythmé</option>
-                  <option value="2.5" selected>2,5 secondes</option>
-                  <option value="3">3 secondes — posé</option>
+                  <option value="2.5">2,5 secondes</option>
+                  <option value="3" selected>3 secondes — posé</option>
                 </select>
               </div>
               <div class="champ">
@@ -1680,71 +1680,88 @@
 
       // ── Dessin d'un plan ──────────────────────────────────────────────
       //
-      // Par défaut l'image remplit le cadre quitte à déborder : pas de bandes
-      // noires. Mais une photo en paysage dans un cadre vertical n'y survit
-      // pas — il n'en resterait que 42 %, la maison coupée en deux. Au-delà du
-      // seuil, on pose la photo entière sur un fond flou tiré d'elle-même.
-      const SEUIL_RECADRAGE = 0.62;
-
-      const partVisible = (image, l, h) =>
-        Math.min(l / image.width, h / image.height) / Math.max(l / image.width, h / image.height);
-
-      // Le flou se calcule une fois par photo, et en petit : l'appliquer à
-      // chaque image du rendu ferait tomber la cadence.
-      function fabriquerFond(image, l, h) {
-        const petit = document.createElement('canvas');
-        petit.width = Math.max(4, Math.round(l / 8));
-        petit.height = Math.max(4, Math.round(h / 8));
-        const ctx = petit.getContext('2d');
-        ctx.filter = 'blur(5px) brightness(0.62)';
-        const echelle = Math.max(petit.width / image.width, petit.height / image.height) * 1.2;
-        const dl = image.width * echelle;
-        const dh = image.height * echelle;
-        ctx.drawImage(image, (petit.width - dl) / 2, (petit.height - dh) / 2, dl, dh);
-        return petit;
-      }
-
+      // La photo remplit toujours le cadre, centrée, quitte à déborder : mieux
+      // vaut zoomer que laisser des bandes. En carré, une photo 4:3 n'y perd
+      // qu'un quart de sa largeur.
       function dessinerPlan(ctx, plan, l, h, avancement, zoomActif) {
         const image = plan.image;
-        if (plan.fond) {
-          ctx.drawImage(plan.fond, 0, 0, l, h);
-          // La photo touche déjà deux bords : elle ne peut que grandir vers sa
-          // taille finale, jamais la dépasser.
-          const zoom = zoomActif ? 0.97 + 0.03 * avancement : 1;
-          poser(ctx, image, l, h, Math.min(l / image.width, h / image.height) * zoom);
-          return;
-        }
         const zoom = zoomActif ? ZOOM_DEPART + (ZOOM_FIN - ZOOM_DEPART) * avancement : 1;
-        poser(ctx, image, l, h, Math.max(l / image.width, h / image.height) * zoom);
-      }
-
-      function poser(ctx, image, l, h, echelle) {
+        const echelle = Math.max(l / image.width, h / image.height) * zoom;
         const dl = image.width * echelle;
         const dh = image.height * echelle;
         ctx.drawImage(image, (l - dl) / 2, (h - dh) / 2, dl, dh);
       }
 
+      // Ce qu'il reste de la photo une fois le cadre rempli. Sous la moitié,
+      // le recadrage se voit : on le dit plutôt que de le laisser découvrir.
+      const partVisible = (image, l, h) =>
+        Math.min(l / image.width, h / image.height) / Math.max(l / image.width, h / image.height);
+
+      // L'habillage reprend celui des vidéos de l'étude : un cadre blanc
+      // filaire en bas à gauche, le titre en clair et centré dedans. Les
+      // proportions sont relevées sur leurs vidéos (cadre de 34 % de la
+      // largeur, à 5,5 % du bord gauche, le bas à 19 % du bas du cadre).
+      const CADRE = { gauche: 0.055, bas: 0.193, largeur: 0.344, hauteur: 0.09, corps: 0.0444 };
+
       function dessinerTitre(ctx, l, h, titre) {
         if (!titre) return;
-        const corps = Math.round(l * 0.072);
-        const gauche = Math.round(l * 0.075);
-        // Le dixième inférieur du cadre est recouvert par l'interface de
-        // Facebook dans les Reels : le texte s'arrête au-dessus.
-        const base = h - Math.round(h * 0.1);
-        const depart = Math.max(0, base - corps * 4.2);
+        const corps = Math.round(l * CADRE.corps);
+        ctx.font = `300 ${corps}px "Segoe UI", system-ui, -apple-system, Helvetica, Arial, sans-serif`;
 
-        const degrade = ctx.createLinearGradient(0, depart, 0, h);
-        degrade.addColorStop(0, 'rgba(0,0,0,0)');
-        degrade.addColorStop(0.5, 'rgba(0,0,0,0.38)');
-        degrade.addColorStop(1, 'rgba(0,0,0,0.86)');
-        ctx.fillStyle = degrade;
-        ctx.fillRect(0, depart, l, h - depart);
+        // Le cadre garde sa taille d'une vidéo à l'autre, sauf si le titre
+        // déborde : « Salle de bain » ne doit pas sortir du trait.
+        const marge = Math.round(l * 0.045);
+        const largeur = Math.max(
+          Math.round(l * CADRE.largeur),
+          Math.round(ctx.measureText(titre).width) + marge * 2
+        );
+        const hauteur = Math.round(h * CADRE.hauteur);
+        const x = Math.round(l * CADRE.gauche);
+        const y = Math.round(h - h * CADRE.bas - hauteur);
+
+        // Sur une photo claire, un trait blanc sur fond blanc disparaîtrait.
+        // Une ombre portée discrète suffit à le tenir, sans assombrir la photo.
+        ctx.save();
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.55)';
+        ctx.shadowBlur = Math.round(l * 0.012);
+        ctx.shadowOffsetY = Math.round(l * 0.002);
+
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = Math.max(2, Math.round(l * 0.0019));
+        ctx.strokeRect(x + 0.5, y + 0.5, largeur, hauteur);
 
         ctx.fillStyle = '#ffffff';
-        ctx.fillRect(gauche, base - corps * 1.5, Math.round(l * 0.085), Math.max(3, Math.round(l * 0.005)));
-        ctx.font = `600 ${corps}px "Segoe UI", system-ui, -apple-system, Helvetica, Arial, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(titre, x + largeur / 2, y + hauteur / 2 + corps * 0.04);
+        ctx.restore();
+        ctx.textAlign = 'left';
         ctx.textBaseline = 'alphabetic';
-        ctx.fillText(titre, gauche, base);
+      }
+
+      // Le logo de l'étude, en haut à droite. Déposé dans web/public/logo.png,
+      // il s'ajoute tout seul ; absent, la vidéo se fait sans.
+      let logoEtude = null;
+      async function chargerLogo() {
+        if (logoEtude !== null) return logoEtude;
+        logoEtude = false;
+        if (!etat.config?.logo) return logoEtude;
+        try {
+          const reponse = await fetch('/logo.png');
+          if (!reponse.ok) throw new Error('absent');
+          logoEtude = await createImageBitmap(await reponse.blob());
+        } catch {
+          logoEtude = false;
+        }
+        return logoEtude;
+      }
+
+      function dessinerLogo(ctx, l) {
+        if (!logoEtude) return;
+        const largeur = Math.round(l * 0.26);
+        const hauteur = Math.round((logoEtude.height / logoEtude.width) * largeur);
+        ctx.drawImage(logoEtude, Math.round(l - largeur - l * 0.06), Math.round(l * 0.03),
+          largeur, hauteur);
       }
 
       // ── Rendu ─────────────────────────────────────────────────────────
@@ -1780,15 +1797,11 @@
           // Les images sont décodées une fois pour toutes : décoder pendant
           // l'enregistrement ferait sauter des images.
           progressionVideo('Préparation des images…', 0);
+          await chargerLogo();
           for (const plan of etat.plans) {
             if (!plan.image) plan.image = await createImageBitmap(plan.rendu);
-            // Le fond dépend du format choisi : il se refait à chaque rendu.
-            plan.fond =
-              partVisible(plan.image, l, h) < SEUIL_RECADRAGE
-                ? fabriquerFond(plan.image, l, h)
-                : null;
           }
-          const recadrees = etat.plans.filter((p) => p.fond).length;
+          const rognees = etat.plans.filter((p) => partVisible(p.image, l, h) < 0.5).length;
 
           const enregistreur = new MediaRecorder(scene.captureStream(30), {
             mimeType: type,
@@ -1822,6 +1835,8 @@
             dessinerPlan(ctx, plan, l, h, avancement, zoomActif);
             dessinerTitre(ctx, l, h, plan.titre);
             ctx.globalAlpha = 1;
+            // Le logo ne clignote pas au fondu : il est posé après, opaque.
+            dessinerLogo(ctx, l);
 
             progressionVideo(
               `Image ${rang + 1} sur ${etat.plans.length} — ne quittez pas cet onglet`,
@@ -1846,11 +1861,11 @@
             </div>`;
           scene.hidden = true;
 
-          if (recadrees) {
-            avis($('resultatVideo'), 'ok', 'Photos en paysage', [
-              `${recadrees} photo(s) ne tiennent pas dans ce format sans être coupées : `
-              + 'elles sont posées en entier sur un fond flou. Le format 16:9 les montrerait '
-              + 'en plein cadre, mais il passe moins bien sur Facebook.',
+          if (rognees) {
+            avis($('resultatVideo'), 'alerte', 'Recadrage marqué', [
+              `${rognees} photo(s) perdent plus de la moitié de leur largeur dans ce format. `
+              + 'Le cadre est rempli, centré, mais vérifiez que rien d\'important ne sort '
+              + 'de l\'image — le format carré recadre beaucoup moins.',
             ]);
           }
           if (!type.startsWith('video/mp4')) {

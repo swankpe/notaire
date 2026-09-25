@@ -244,9 +244,16 @@ Quelques points à connaître :
 - **Utilisez Chrome ou Edge à jour.** Ce sont les seuls à produire du MP4
   H.264, le format que Facebook attend. Ailleurs la vidéo sort en WebM et
   l'outil vous le signale.
-- **Les photos en paysage ne sont pas coupées.** Dans un cadre vertical, un
-  recadrage centré n'en garderait que 42 % : la photo est posée entière sur un
-  fond flou tiré d'elle-même.
+- **Le format carré 1:1 est celui de l'étude**, et c'est celui qui recadre le
+  moins : une photo en 4:3 n'y perd qu'un quart de sa largeur. La photo remplit
+  toujours le cadre, centrée — jamais de bandes. En vertical 9:16 le recadrage
+  est sévère et l'outil vous prévient.
+- **Le logo s'incruste en haut à droite** s'il existe : déposez-le dans
+  `web/public/logo.png` (PNG à fond transparent). Sans ce fichier, la vidéo se
+  fait sans logo.
+- **L'habillage est celui de vos vidéos** : cadre blanc filaire en bas à
+  gauche, titre clair centré dedans. Les proportions sont relevées sur vos
+  montages, dans la constante `CADRE` de `web/public/index.html`.
 - **Un titre n'est jamais deviné.** Si Claude hésite, la photo passe sans
   texte, et vous êtes prévenu.
 - **Pas de musique.** Ajoutez-la dans l'éditeur de Facebook au moment de
