@@ -432,10 +432,12 @@ export function creerApplication() {
 
     // La ville, l'office... sont des elements d'autres collections : la fiche
     // n'en garde que l'identifiant, le carton veut le libelle.
+    // La fiche de la commune est lue avec ses donnees : le code postal s'y
+    // trouve souvent, alors qu'il est absent de la fiche du bien.
     const carton = await cartonDuBien(structure, item, config, async (collectionId, id) => {
       if (!collectionId || typeof id !== 'string') return null;
-      const items = await listerItems(collectionId, jeton);
-      return items.find((i) => i.id === id)?.nom ?? null;
+      const items = await listerItems(collectionId, jeton, { avecDonnees: true });
+      return items.find((i) => i.id === id) ?? null;
     });
     reponse.json({ ...resultat, photos: photos.map((p) => p.nom), carton });
   });

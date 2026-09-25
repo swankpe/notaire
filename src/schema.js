@@ -120,14 +120,16 @@ export function choisirChampParNom(structure, prefere, indices) {
     const exact = structure.champs.find((c) => c.slug === prefere);
     if (exact) return exact;
   }
-  return (
-    structure.champs.find((c) =>
-      indices.some(
-        (i) =>
-          sansAccent(c.slug).includes(i) || sansAccent(c.displayName ?? '').includes(i)
-      )
-    ) ?? null
-  );
+  // Les indices sont ranges du plus precis au plus vague, et essayes dans cet
+  // ordre : « type de bien » doit l'emporter sur un simple « type » quand la
+  // collection porte les deux.
+  for (const indice of indices) {
+    const trouve = structure.champs.find(
+      (c) => sansAccent(c.slug).includes(indice) || sansAccent(c.displayName ?? '').includes(indice)
+    );
+    if (trouve) return trouve;
+  }
+  return null;
 }
 
 /** Signale un slug configure qui ne correspond a aucun champ de la collection. */

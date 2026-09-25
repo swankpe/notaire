@@ -137,34 +137,45 @@ await verifier("la liste des plans video est remise d'aplomb", async () => {
 await verifier("le carton de la video ne montre jamais un identifiant Webflow", async () => {
   const { cartonDuBien } = await import('../src/video.js');
 
-  // La ville est une reference : la fiche n'en garde que l'identifiant.
-  const collection = {
+  // La collection reelle de l'etude : la ville est une reference, le type de
+  // bien s'appelle « type-maison », et il n'y a aucun champ code postal.
+  const structure = analyserCollection({
     fields: [
-      { slug: 'ville', displayName: 'Ville', type: 'Reference',
-        validations: { collectionId: 'col3' } },
-      { slug: 'code-postal', displayName: 'Code postal', type: 'PlainText' },
-      { slug: 'type-de-bien', displayName: 'Type de bien', type: 'Option' },
-      { slug: 'prix', displayName: 'Prix', type: 'Number' },
+      { slug: 'ville', displayName: 'ville', type: 'Reference',
+        validations: { collectionId: 'colVilles' } },
+      { slug: 'type-maison', displayName: 'type_maison', type: 'PlainText' },
+      { slug: 'prix', displayName: 'prix', type: 'Number' },
     ],
-  };
-  const structure = analyserCollection(collection);
+  });
   const item = {
-    fieldData: {
-      ville: '65c54aadc7528f05c1c9e876',
-      'code-postal': '22300',
-      'type-de-bien': 'Maison',
-      prix: 147900,
-    },
+    fieldData: { ville: '65c54aadc7528f05c1c9e876', 'type-maison': 'maison', prix: 147900 },
   };
 
-  const resolu = await cartonDuBien(structure, item, {},
-    async (col, id) => (col === 'col3' && id === '65c54aadc7528f05c1c9e876' ? 'Ploumilliau' : null));
-  assert.deepEqual(resolu,
-    { commune: 'Ploumilliau', codePostal: '22300', typeDeBien: 'Maison', prix: 147900 });
+  // Le code postal vit dans la fiche de la commune, pas dans celle du bien.
+  const villes = async (col, id) =>
+    col === 'colVilles' && id === '65c54aadc7528f05c1c9e876'
+      ? { nom: 'Ploumilliau', donnees: { name: 'Ploumilliau', 'code-postal': '22300' } }
+      : null;
 
-  // Reference introuvable : la ligne reste vide, l'identifiant ne sort pas.
+  const carton = await cartonDuBien(structure, item, {}, villes);
+  assert.equal(carton.commune, 'Ploumilliau');
+  assert.equal(carton.codePostal, '22300', 'repris dans la fiche de la commune');
+  assert.equal(carton.typeDeBien, 'Maison', '« maison » saisi en minuscules est capitalise');
+  assert.equal(carton.prix, 147900);
+  assert.deepEqual(carton.manques, [], 'rien a signaler quand tout est trouve');
+
+  // Fiche de commune sans champ nomme : une valeur a cinq chiffres suffit.
+  const devine = await cartonDuBien(structure, item, {}, async () =>
+    ({ nom: 'Lannion', donnees: { name: 'Lannion', divers: '22300' } }));
+  assert.equal(devine.codePostal, '22300');
+
+  // Reference introuvable : la ligne reste vide, l'identifiant ne sort pas,
+  // et l'utilisateur sait quoi corriger.
   const perdu = await cartonDuBien(structure, item, {}, async () => null);
   assert.equal(perdu.commune, null, "mieux vaut un carton incomplet qu'un identifiant affiche");
+  assert.equal(perdu.codePostal, null);
+  assert.equal(perdu.manques.length, 2, 'commune et code postal signales');
+  assert.match(perdu.manques.join(' '), /code postal/i);
 
   // Garde-fou : meme un champ texte contenant un identifiant est ecarte.
   const texte = analyserCollection({
@@ -173,11 +184,25 @@ await verifier("le carton de la video ne montre jamais un identifiant Webflow", 
   const brut = await cartonDuBien(
     texte, { fieldData: { commune: '65C54AADC7528F05C1C9E876' } }, {}, async () => null);
   assert.equal(brut.commune, null);
+  assert.equal(
+    (await cartonDuBien(texte, { fieldData: { commune: 'Lannion' } }, {}, async () => null)).commune,
+    'Lannion'
+  );
+});
 
-  // Et un nom de commune normal passe, lui.
-  const normal = await cartonDuBien(
-    texte, { fieldData: { commune: 'Lannion' } }, {}, async () => null);
-  assert.equal(normal.commune, 'Lannion');
+await verifier("un champ precis l'emporte sur un champ vague", async () => {
+  const { choisirChampParNom } = await import('../src/schema.js');
+  const structure = analyserCollection({
+    fields: [
+      { slug: 'type-chauffage', displayName: 'Type de chauffage', type: 'PlainText' },
+      { slug: 'type-de-bien', displayName: 'Type de bien', type: 'PlainText' },
+    ],
+  });
+  assert.equal(
+    choisirChampParNom(structure, null, ['type de bien', 'type']).slug,
+    'type-de-bien',
+    'sinon « Type de chauffage » gagnerait par ordre d apparition'
+  );
 });
 
 await verifier("un champ obligatoire absent de la collection est signale", () => {

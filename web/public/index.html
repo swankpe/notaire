@@ -1586,20 +1586,14 @@
       // rien d'autre. Ce qui manque est dit, pas comblé : un prix ou une
       // commune inventés sur une annonce notariale, c'est une faute.
       function composerCarton(carton) {
-        const manques = [];
         const lieu = [carton?.commune, carton?.codePostal].filter(Boolean).join(' - ');
-        if (!carton?.commune) manques.push('Commune absente de la fiche.');
-        if (!carton?.typeDeBien) {
-          manques.push("Type de bien absent de la fiche : la ligne « … à vendre » ne s'affichera pas.");
-        }
-        if (typeof carton?.prix !== 'number') {
-          manques.push('Prix absent de la fiche : le cadre du prix ne sera pas affiché.');
-        }
         return {
           lieu: lieu || null,
           titre: carton?.typeDeBien ? `${carton.typeDeBien} à vendre` : null,
           prix: typeof carton?.prix === 'number' ? euros.format(carton.prix) : null,
-          manques,
+          // Le serveur seul connaît la structure de la collection : c'est lui
+          // qui dit ce qui manque, et où.
+          manques: carton?.manques ?? [],
         };
       }
 

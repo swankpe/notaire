@@ -61,56 +61,109 @@ const nomDepuisUrl = (url) => {
  */
 const ressembleAUnIdentifiant = (texte) => /^[0-9a-f]{24}$/i.test(String(texte).trim());
 
+const texteUtile = (brut) => {
+  if (brut === undefined || brut === null || brut === '') return null;
+  if (typeof brut === 'number') return String(brut);
+  if (typeof brut !== 'string') return null;
+  const texte = brut.trim();
+  return texte && !ressembleAUnIdentifiant(texte) ? texte : null;
+};
+
+// Du plus precis au plus vague : le premier indice qui trouve un champ gagne.
+const INDICES_COMMUNE = ['commune', 'ville', 'localite'];
+const INDICES_CODE_POSTAL = ['code postal', 'code-postal', 'codepostal', 'code_postal', 'cp', 'zip', 'postal'];
+const INDICES_TYPE = [
+  'type de bien', 'type-de-bien', 'type_de_bien', 'nature du bien',
+  'categorie', 'type', 'nature',
+];
+
+const estUnCodePostal = (valeur) => /^\d{5}$/.test(String(valeur).trim());
+
 /**
- * Ce qui s'affiche sur l'image d'ouverture : la commune, ce qu'on vend, le
- * prix. Tout est relu dans la fiche du site — un carton d'annonce notariale
- * ne s'invente pas. Un champ absent sort a `null` et la ligne ne s'affiche
- * simplement pas.
+ * Cherche le code postal dans la fiche d'une commune. Beaucoup de collections
+ * « Villes » le portent en propre ; il n'est pas dans la fiche du bien.
+ */
+function codePostalDans(fiche) {
+  if (!fiche) return null;
+  for (const [cle, valeur] of Object.entries(fiche)) {
+    const nom = cle.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    if (!INDICES_CODE_POSTAL.some((i) => nom.includes(i))) continue;
+    if (typeof valeur === 'number') return String(valeur).padStart(5, '0');
+    const texte = texteUtile(valeur);
+    if (texte) return texte;
+  }
+  // Aucun champ ne se nomme ainsi : une valeur a cinq chiffres dans une fiche
+  // de commune n'est raisonnablement rien d'autre.
+  for (const valeur of Object.values(fiche)) {
+    if (estUnCodePostal(valeur)) return String(valeur).trim();
+  }
+  return null;
+}
+
+/**
+ * Ce qui s'affiche sur l'image d'ouverture : la commune, son code postal, ce
+ * qu'on vend, le prix. Tout est relu dans la fiche du site — un carton
+ * d'annonce notariale ne s'invente pas. Un champ introuvable sort a `null`,
+ * la ligne ne s'affiche pas, et `manques` dit ce qui a echoue.
  *
- * Les champs sont reconnus a leur intitule, comme le champ prix, et un slug
- * peut etre impose dans la configuration : chaque etude nomme les siens.
- *
- * La ville est souvent un champ de reference : sa valeur est l'identifiant
- * d'un element d'une autre collection, pas un nom. `resoudreReference` va y
- * chercher le libelle. A defaut, la ligne reste vide — mieux vaut un carton
- * incomplet qu'un « 65c54aadc7528f05c1c9e876 » en gros sur la video.
+ * La commune est souvent un champ de reference : sa valeur est l'identifiant
+ * d'un element d'une autre collection. `resoudreReference` rend le nom de cet
+ * element **et sa fiche**, ou se trouve souvent le code postal, absent de la
+ * fiche du bien.
  */
 export async function cartonDuBien(structure, item, config, resoudreReference) {
   const donnees = item?.fieldData ?? {};
+  const manques = [];
+
+  const champCommune = choisirChampParNom(structure, config.champCommune, INDICES_COMMUNE);
+  const champCodePostal = choisirChampParNom(structure, config.champCodePostal, INDICES_CODE_POSTAL);
+  const champType = choisirChampParNom(structure, config.champTypeDeBien, INDICES_TYPE);
+  const champPrix = choisirChampPrix(structure, config.champPrix);
 
   const lire = async (champ) => {
-    if (!champ) return null;
+    if (!champ) return { valeur: null, fiche: null };
     const brut = donnees[champ.slug];
-    if (brut === undefined || brut === null || brut === '') return null;
-
+    if (champ.type === 'MultiReference') return { valeur: null, fiche: null };
     if (champ.type === 'Reference') {
-      const nom = await resoudreReference?.(champ.validations?.collectionId, brut);
-      return nom && !ressembleAUnIdentifiant(nom) ? nom : null;
+      const vise = await resoudreReference?.(champ.validations?.collectionId, brut);
+      return { valeur: texteUtile(vise?.nom), fiche: vise?.donnees ?? null };
     }
-    // Une multi-reference porte plusieurs valeurs : on ne choisit pas a la
-    // place de l'utilisateur.
-    if (champ.type === 'MultiReference') return null;
-
-    if (typeof brut === 'number') return brut;
-    const texte = String(brut).trim();
-    // Garde-fou : meme hors champ de reference, rien qui ressemble a un
-    // identifiant ne part a l'ecran.
-    return texte && !ressembleAUnIdentifiant(texte) ? texte : null;
+    return { valeur: texteUtile(brut), fiche: null };
   };
 
-  const champPrix = choisirChampPrix(structure, config.champPrix);
+  const commune = await lire(champCommune);
+  if (!champCommune) manques.push("Aucun champ commune ou ville dans la collection.");
+  else if (!commune.valeur) manques.push(`Le champ « ${champCommune.displayName} » est vide pour ce bien.`);
+
+  let codePostal = (await lire(champCodePostal)).valeur;
+  if (!codePostal) codePostal = codePostalDans(commune.fiche);
+  if (!codePostal) {
+    manques.push(
+      champCodePostal
+        ? `Le champ « ${champCodePostal.displayName} » est vide pour ce bien.`
+        : "Aucun champ code postal, ni dans la fiche du bien ni dans celle de la commune."
+    );
+  }
+
+  const type = await lire(champType);
+  if (!champType) manques.push("Aucun champ type de bien dans la collection.");
+  else if (!type.valeur) manques.push(`Le champ « ${champType.displayName} » est vide pour ce bien.`);
+
   const prix = donnees[champPrix?.slug];
+  if (typeof prix !== 'number') {
+    manques.push(champPrix ? `Le champ « ${champPrix.displayName} » est vide pour ce bien.`
+      : "Aucun champ prix dans la collection.");
+  }
 
   return {
-    commune: await lire(choisirChampParNom(structure, config.champCommune,
-      ['commune', 'ville', 'localite'])),
-    codePostal: await lire(choisirChampParNom(structure, config.champCodePostal,
-      ['code postal', 'code-postal', 'codepostal', 'cp'])),
-    typeDeBien: await lire(choisirChampParNom(structure, config.champTypeDeBien,
-      ['type de bien', 'type-de-bien', 'typedebien', 'nature'])),
+    commune: commune.valeur,
+    codePostal,
+    // « maison » saisi en minuscules doit s'afficher « Maison a vendre ».
+    typeDeBien: type.valeur ? type.valeur[0].toUpperCase() + type.valeur.slice(1) : null,
     // Le prix affiche est celui de la fiche, honoraires de negociation
     // compris : c'est le seul que l'etude publie.
     prix: typeof prix === 'number' ? prix : null,
+    manques,
   };
 }
 
