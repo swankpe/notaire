@@ -181,11 +181,23 @@ en local (`npm start`) reste gratuit et strictement équivalent.
 
 ---
 
-## Rédiger un post Facebook
+## Publier sur Facebook : le texte et la vidéo
 
-Second onglet de l'outil. Vous choisissez un bien parmi ceux du CMS, et il
-rédige le post dans le style de vos publications précédentes, à partir de la
-fiche telle qu'elle figure sur le site.
+Second onglet de l'outil. Une seule page produit les deux morceaux d'une
+publication : **le texte**, tiré de la fiche du bien dans le CMS, et **la
+vidéo diaporama**, montée à partir des photos que vous déposez.
+
+1. **Choisissez le bien** — c'est lui qui fournit le texte.
+2. **Déposez les photos** — ce sont elles qui font la vidéo.
+3. **Un seul bouton** lance les deux analyses en même temps : la rédaction du
+   post et la reconnaissance des pièces. Le bouton s'adapte : sans photos il
+   ne propose que le post, sans bien que les pièces.
+4. Relisez le texte, corrigez les titres, générez la vidéo.
+
+L'un n'attend pas l'autre. Si la rédaction échoue, la reconnaissance des
+pièces aboutit quand même, et inversement.
+
+### Le texte
 
 Avec plus de cent cinquante biens, dérouler la liste ne suffit pas : un
 **filtre par ville** (et par office, ou tout autre champ de référence de votre
@@ -214,23 +226,16 @@ ressemble plus mérite d'être retiré.
 
 Comme pour la lecture des fiches, rien n'est inventé : une surface ou une
 proximité absente du CMS n'apparaît pas dans le post, et le manque est signalé
-au-dessus du texte.
+au-dessus du texte. **Le texte ne vient jamais des photos** : une annonce
+notariale ne se rédige pas d'après une image.
 
----
+### La vidéo
 
-## Faire une vidéo diaporama
-
-L'onglet **Vidéo** fabrique la vidéo de présentation publiée sur Facebook :
-chaque photo s'affiche avec le nom de la pièce incrusté en bas, les plans
-s'enchaînent en fondu.
-
-1. Déposez les photos du bien.
-2. **Reconnaître les pièces** : Claude les regarde, propose un titre pour
-   chacune (« Cuisine », « Grange », « Terrain »…) et les remet dans un ordre
-   de visite — on arrive par la façade, on traverse la maison, on ressort par
-   les annexes et le terrain.
-3. Corrigez les titres, glissez pour réordonner, choisissez le format.
-4. **Générer la vidéo** : elle se fabrique sous vos yeux, puis se télécharge.
+Chaque photo s'affiche avec le nom de la pièce incrusté en bas à gauche, dans
+un cadre blanc filaire ; les plans s'enchaînent en fondu. Claude propose un
+titre pour chacune (« Cuisine », « Grange », « Terrain »…) et les remet dans un
+ordre de visite — on arrive par la façade, on traverse la maison, on ressort
+par les annexes et le terrain.
 
 Quelques points à connaître :
 
@@ -259,6 +264,8 @@ Quelques points à connaître :
 - **Pas de musique.** Ajoutez-la dans l'éditeur de Facebook au moment de
   publier : sa bibliothèque est libre de droits, ce qu'un fichier trouvé
   ailleurs n'est pas.
+
+---
 
 ## Ce que l'outil remplit, et ce qu'il ne remplit pas
 

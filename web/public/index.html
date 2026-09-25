@@ -298,8 +298,7 @@
 
         <nav id="onglets" hidden>
           <button type="button" class="onglet actif" data-vue="publier">Publier un bien</button>
-          <button type="button" class="onglet" data-vue="facebook">Post Facebook</button>
-          <button type="button" class="onglet" data-vue="video">Vidéo</button>
+          <button type="button" class="onglet" data-vue="facebook">Facebook</button>
         </nav>
 
         <section id="configuration" hidden>
@@ -375,29 +374,43 @@
         </section>
         </div>
 
-        <div id="vueVideo" hidden>
+        <div id="vueFacebook" hidden>
           <section>
-            <h2>Vidéo diaporama</h2>
-            <p class="note" style="margin: -6px 0 16px">
-              Déposez les photos du bien : chaque pièce est reconnue et titrée, la vidéo
-              se fabrique dans votre navigateur. Rien n'est envoyé ailleurs que les photos
-              réduites, le temps de l'analyse.
-            </p>
+            <h2>1 · Le bien et ses photos</h2>
+            <div id="filtresBiens"></div>
+            <div class="champ">
+              <label for="choixBien">
+                Bien à annoncer<span class="aide" id="compteurBiens"></span>
+              </label>
+              <select id="choixBien" disabled><option>Chargement…</option></select>
+            </div>
+
             <div class="depot" id="zoneVideo">
               <strong>Glissez ici les photos du bien</strong>
-              <span>ou cliquez pour les choisir</span>
+              <span>ou cliquez pour les choisir — pour la vidéo</span>
             </div>
             <input type="file" id="selecteurVideo" multiple accept="image/*" hidden />
+            <div class="note" id="noteVideo" style="margin-top: 10px"></div>
+
             <div class="barre-actions">
-              <span class="note" id="noteVideo">Aucune photo pour le moment.</span>
-              <button class="principal" id="boutonPieces" disabled>Reconnaître les pièces</button>
+              <span class="note" id="noteFacebook">
+                Le texte vient de la fiche du CMS, la vidéo de ces photos.
+                L'un n'attend pas l'autre : vous pouvez ne demander que l'un des deux.
+              </span>
+              <button class="principal" id="boutonAnalyserFb" disabled>
+                Rédiger le post et reconnaître les pièces
+              </button>
             </div>
             <div id="avisVideo"></div>
           </section>
 
+          <section id="etapePost" hidden>
+            <h2>2 · Le texte du post</h2>
+            <div id="resultatFacebook"></div>
+          </section>
           <section id="etapeMontage" hidden>
             <h2>
-              Montage
+              3 · Montage de la vidéo
               <span class="libre">(corrigez les titres, glissez pour réordonner)</span>
             </h2>
             <div class="grille-photos" id="grillePlans"></div>
@@ -435,27 +448,7 @@
             <div id="resultatVideo"></div>
             <canvas id="scene" hidden></canvas>
           </section>
-        </div>
 
-        <div id="vueFacebook" hidden>
-          <section>
-            <h2>Rédiger un post Facebook</h2>
-            <div id="filtresBiens"></div>
-            <div class="champ">
-              <label for="choixBien">
-                Bien à annoncer<span class="aide" id="compteurBiens"></span>
-              </label>
-              <select id="choixBien" disabled><option>Chargement…</option></select>
-            </div>
-            <div class="barre-actions">
-              <span class="note" id="noteFacebook">
-                Le post est rédigé d'après la fiche du bien telle qu'elle figure dans le CMS,
-                dans le style de vos publications précédentes.
-              </span>
-              <button class="principal" id="boutonRediger" disabled>Rédiger le post</button>
-            </div>
-            <div id="resultatFacebook"></div>
-          </section>
         </div>
       </div>
     </main>
@@ -579,7 +572,7 @@
       }
 
       // ── Navigation entre les trois usages ─────────────────────────────
-      const VUES = { publier: 'vuePublier', facebook: 'vueFacebook', video: 'vueVideo' };
+      const VUES = { publier: 'vuePublier', facebook: 'vueFacebook' };
       document.querySelectorAll('.onglet').forEach((bouton) =>
         bouton.addEventListener('click', () => {
           document.querySelectorAll('.onglet').forEach((b) => b.classList.remove('actif'));
@@ -626,7 +619,10 @@
           $('filtresBiens').innerHTML = '';
           if (erreur instanceof SessionExpiree) return;
           liste.innerHTML = '<option>Chargement impossible</option>';
-          avis($('resultatFacebook'), 'erreur', 'Lecture des biens impossible', [erreur.message]);
+          avis($('avisVideo'), 'erreur', 'Lecture des biens impossible', [
+            erreur.message,
+            'La vidéo reste possible : déposez les photos.',
+          ]);
         }
       }
 
@@ -719,38 +715,65 @@
           retenus.length === etat.biens.length
             ? `${etat.biens.length} au total`
             : `${retenus.length} sur ${etat.biens.length}`;
-        $('boutonRediger').disabled = true;
+        majBoutonAnalyse();
       }
 
-      $('choixBien').addEventListener('change', (ev) => {
-        $('boutonRediger').disabled = !ev.target.value;
+      // Le texte et la vidéo ne se doivent rien : le premier vient de la fiche
+      // du CMS, la seconde des photos déposées. On peut n'avoir que l'un.
+      function majBoutonAnalyse() {
+        const bien = Boolean($('choixBien').value);
+        const photos = etat.plans.length > 0;
+        const bouton = $('boutonAnalyserFb');
+        bouton.disabled = !bien && !photos;
+        bouton.textContent =
+          bien && !photos ? 'Rédiger le post'
+          : photos && !bien ? 'Reconnaître les pièces'
+          : 'Rédiger le post et reconnaître les pièces';
+      }
+
+      $('choixBien').addEventListener('change', majBoutonAnalyse);
+
+      $('boutonAnalyserFb').addEventListener('click', async () => {
+        const itemId = $('choixBien').value;
+        const bouton = $('boutonAnalyserFb');
+        bouton.disabled = true;
+        const libelle = bouton.textContent;
+        bouton.textContent = 'Analyse en cours…';
+        $('avisVideo').innerHTML = '';
+
+        // Les deux partent ensemble : deux appels, une seule attente.
+        const travaux = [];
+        if (itemId) travaux.push(redigerPost(itemId));
+        if (etat.plans.length) travaux.push(reconnaitrePieces());
+        await Promise.all(travaux);
+
+        bouton.textContent = libelle;
+        majBoutonAnalyse();
       });
 
-      $('boutonRediger').addEventListener('click', async () => {
-        const itemId = $('choixBien').value;
-        $('boutonRediger').disabled = true;
+      // Chacune garde ses erreurs pour elle : si la rédaction échoue, la
+      // reconnaissance des pièces doit quand même aboutir.
+      async function redigerPost(itemId) {
+        $('etapePost').hidden = false;
         $('resultatFacebook').innerHTML =
           '<div class="journal"><span class="chargement"><span class="rond"></span>'
           + 'Rédaction en cours…</span></div>';
-
         try {
-          const post = await appel('/api/publication', {
+          afficherPost(await appel('/api/publication', {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ itemId }),
-          });
-          afficherPost(post);
+          }));
         } catch (erreur) {
           $('resultatFacebook').innerHTML = '';
           if (!(erreur instanceof SessionExpiree)) {
             avis($('resultatFacebook'), 'erreur', 'La rédaction a échoué', [erreur.message]);
           }
-        } finally {
-          $('boutonRediger').disabled = false;
         }
-      });
+      }
 
       function afficherPost(post) {
+        $('etapePost').hidden = false;
         $('resultatFacebook').innerHTML = '';
         if (post.remarques?.length) {
           avis($('resultatFacebook'), 'alerte', 'À vérifier avant de publier', post.remarques);
@@ -1571,8 +1594,8 @@
         $('noteVideo').textContent = etat.plans.length
           ? `${etat.plans.length} photo(s) · ${etat.plans.length * Number($('dureePhoto').value)} s de vidéo`
           : 'Aucune photo pour le moment.';
-        $('boutonPieces').disabled = etat.plans.length === 0;
         $('etapeMontage').hidden = etat.plans.length === 0;
+        majBoutonAnalyse();
 
         $('grillePlans').innerHTML = etat.plans
           .map(
@@ -1649,11 +1672,7 @@
       $('dureePhoto').addEventListener('change', afficherPlans);
 
       // ── Reconnaissance des pièces ─────────────────────────────────────
-      $('boutonPieces').addEventListener('click', async () => {
-        const bouton = $('boutonPieces');
-        bouton.disabled = true;
-        bouton.textContent = 'Analyse en cours…';
-        $('avisVideo').innerHTML = '';
+      async function reconnaitrePieces() {
         try {
           const formulaire = new FormData();
           for (const plan of etat.plans) formulaire.append('photos', plan.analyse, plan.nom);
@@ -1672,11 +1691,8 @@
           if (!(erreur instanceof SessionExpiree)) {
             avis($('avisVideo'), 'erreur', "La reconnaissance a échoué", [erreur.message]);
           }
-        } finally {
-          bouton.disabled = etat.plans.length === 0;
-          bouton.textContent = 'Reconnaître les pièces';
         }
-      });
+      }
 
       // ── Dessin d'un plan ──────────────────────────────────────────────
       //
@@ -1881,6 +1897,7 @@
         } finally {
           rendEnCours = false;
           $('boutonRendu').disabled = false;
+          $('noteMontage').textContent = '';
         }
       }
 

@@ -101,6 +101,10 @@ pas hors d'un vrai navigateur.
   oublier une photo ou en citer deux fois. `ordonnerPlans` garantit que chaque
   photo revient une fois et une seule ; une photo rattrapée part **sans texte**,
   jamais avec un titre deviné, et l'utilisateur est prévenu.
+- **Le texte du post ne vient jamais des photos.** Une seule page produit le
+  post et la vidéo, mais les deux sources restent séparées : le texte vient de
+  la fiche du CMS, la vidéo des photos déposées. Rédiger d'après une image
+  reviendrait à inventer surface, prix et situation.
 - **L'habillage vidéo n'est pas une invention.** Cadre blanc filaire en bas à
   gauche, titre clair centré, logo en haut à droite, format carré : tout vient
   des montages que l'étude publie déjà. Les proportions sont dans la constante
