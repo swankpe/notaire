@@ -156,6 +156,17 @@ pas hors d'un vrai navigateur.
   post et la vidéo, mais les deux sources restent séparées : le texte vient de
   la fiche du CMS, la vidéo des photos déposées. Rédiger d'après une image
   reviendrait à inventer surface, prix et situation.
+- **Les consignes envoyées à Claude sont accentuées.** Elles ne sont pas du
+  commentaire de code : ce qu'elles décrivent finit **incrusté à l'écran**. Une
+  liste de vocabulaire écrite « piece, dependance, sejour » fait rendre des
+  titres sans accents, et « Sejour » en gros sur une vidéo d'étude notariale
+  est une faute visible. Vaut pour `src/video.js`, `src/extraction.js` et
+  `config/publication.json`.
+- **L'image de fin est une composition finie.** `web/public/outro.jpg` porte
+  déjà sa photo, son texte et son logo : elle est posée **entière**, sans
+  recadrage, sans titre et sans logo ajouté — contrairement aux photos, qui
+  remplissent le cadre. Dans un format qui n'est pas le sien, elle est bordée
+  de noir plutôt que rognée : on ne coupe pas un texte déjà composé.
 - **L'habillage vidéo n'est pas une invention.** Cadre blanc filaire en bas à
   gauche, titre clair centré, logo en haut à droite, format carré : tout vient
   des montages que l'étude publie déjà. Les proportions sont dans la constante

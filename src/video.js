@@ -283,36 +283,39 @@ export async function telechargerPhoto(url, { largeurMax, qualite }) {
   return preparerPhoto(brut, { largeurMax, qualite });
 }
 
-const CONSIGNES = `Tu prepares une video diaporama pour l'annonce immobiliere d'une etude notariale.
+const CONSIGNES = `Tu prépares une vidéo diaporama pour l'annonce immobilière d'une étude notariale.
 
-On te donne les photos d'un bien, numerotees a partir de 0 dans l'ordre ou elles
-ont ete deposees. Pour chacune, donne un titre court qui sera incruste a l'ecran,
+On te donne les photos d'un bien, numérotées à partir de 0 dans l'ordre où elles
+ont été déposées. Pour chacune, donne un titre court qui sera incrusté à l'écran,
 et remets l'ensemble dans un ordre de visite naturel.
 
 Le titre :
-- un ou deux mots, sans article ni ponctuation. Dans la maison : « Entree »,
-  « Sejour », « Cuisine », « Salle a manger », « Chambre », « Salle de bain »,
-  « Bureau », « Buanderie », « Cave », « Combles », « Veranda ». Autour :
-  « Facade », « Jardin », « Terrasse », « Cour », « Terrain », « Vue ». Les
-  annexes, frequentes sur ces biens : « Grange », « Dependance », « Hangar »,
-  « Appentis », « Atelier », « Garage », « Puits », « Longere ».
+- **Accentué correctement.** Il s'affiche en grand sur une vidéo publiée par une
+  étude notariale : « Séjour », « Entrée », « Dépendance », « Véranda »,
+  « Façade », « Pièce de vie ». Un titre sans accent est une faute visible.
+- un ou deux mots, sans article ni ponctuation. Dans la maison : « Entrée »,
+  « Séjour », « Cuisine », « Salle à manger », « Chambre », « Salle de bain »,
+  « Bureau », « Buanderie », « Cave », « Combles », « Véranda ». Autour :
+  « Façade », « Jardin », « Terrasse », « Cour », « Terrain », « Vue ». Les
+  annexes, fréquentes sur ces biens : « Grange », « Dépendance », « Hangar »,
+  « Appentis », « Atelier », « Garage », « Puits », « Longère ».
 - une majuscule au premier mot seulement.
-- deux photos de la meme piece portent le meme titre : l'ordre les regroupe.
-- si la photo ne montre rien d'identifiable, ou si tu hesites, laisse le titre
-  vide. Une video sans texte sur une image vaut mieux qu'un titre faux : c'est
+- deux photos de la même pièce portent le même titre : l'ordre les regroupe.
+- si la photo ne montre rien d'identifiable, ou si tu hésites, laisse le titre
+  vide. Une vidéo sans texte sur une image vaut mieux qu'un titre faux : c'est
   une annonce notariale, pas une illustration.
 
-Beaucoup de ces biens sont a renover : pieces vides, murs abimes, batiments
-envahis par la vegetation, terrain en friche. C'est normal, ce n'est pas une
-raison pour renoncer au titre. Une piece vide reste une piece : on la nomme par
-ce qu'elle est (cheminee et volume = sejour, evier ou hotte = cuisine, porte
-d'entree = entree). En revanche on ne promet rien : jamais « Cuisine amenagee »
-ni « Beau sejour », le titre nomme, il ne vend pas.
+Beaucoup de ces biens sont à rénover : pièces vides, murs abîmés, bâtiments
+envahis par la végétation, terrain en friche. C'est normal, ce n'est pas une
+raison pour renoncer au titre. Une pièce vide reste une pièce : on la nomme par
+ce qu'elle est (cheminée et volume = séjour, évier ou hotte = cuisine, porte
+d'entrée = entrée). En revanche on ne promet rien : jamais « Cuisine aménagée »
+ni « Beau séjour », le titre nomme, il ne vend pas.
 
-L'ordre de visite : on arrive par l'exterieur (facade), on entre, on traverse
-les pieces de vie (sejour, cuisine, salle a manger), puis les chambres et salles
+L'ordre de visite : on arrive par l'extérieur (façade), on entre, on traverse
+les pièces de vie (séjour, cuisine, salle à manger), puis les chambres et salles
 de bain, puis on ressort (terrasse, jardin), puis les annexes (grange,
-dependance, hangar) et le terrain. Une vue remarquable termine bien une video.
+dépendance, hangar) et le terrain. Une vue remarquable termine bien une vidéo.
 
 Renvoie chaque photo une fois et une seule, dans l'ordre choisi.`;
 
@@ -329,14 +332,14 @@ const SCHEMA = {
         additionalProperties: false,
         required: ['photo', 'titre'],
         properties: {
-          photo: { type: 'integer', description: 'Numero de la photo fournie, a partir de 0.' },
-          titre: { type: 'string', description: 'Titre incruste, ou chaine vide si incertain.' },
+          photo: { type: 'integer', description: 'Numéro de la photo fournie, à partir de 0.' },
+          titre: { type: 'string', description: 'Titre incrusté et accentué, ou chaîne vide si incertain.' },
         },
       },
     },
     remarques: {
       type: 'array',
-      description: "Ce qui merite l'oeil de l'utilisateur : photo floue, doublon, piece indevinable.",
+      description: "Ce qui mérite l'œil de l'utilisateur : photo floue, doublon, pièce indevinable.",
       items: { type: 'string' },
     },
   },

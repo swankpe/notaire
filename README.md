@@ -255,6 +255,11 @@ Le plus propre reste d'ajouter un champ « Code postal » dans votre collection
 Villes : renseigné une fois, il sert pour tous les biens de la commune et
 aucune supposition n'est nécessaire.
 
+**La dernière image ferme la vidéo** : c'est `web/public/outro.jpg`, la carte
+de contact de l'étude. Elle est ajoutée automatiquement à la fin de chaque
+montage, posée entière et sans retouche — elle porte déjà son texte et son
+logo. Pour la changer, remplacez le fichier.
+
 Les images suivantes portent le nom de la pièce, incrusté en bas à gauche dans
 un cadre blanc filaire ; les plans s'enchaînent en fondu. **Un titre est
 obligatoire sur chacune** : le rendu refuse de partir tant qu'il en manque un,

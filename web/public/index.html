@@ -1664,9 +1664,11 @@
         + `&index=${index}&largeur=${LARGEUR_PHOTO}`;
 
       function afficherPlans() {
+        const sequences = etat.plans.length + (etat.config?.outro ? 1 : 0);
         $('noteVideo').textContent = etat.plans.length
-          ? `${etat.plans.length} photo(s) du site · `
-            + `${etat.plans.length * Number($('dureePhoto').value)} s de vidéo`
+          ? `${etat.plans.length} photo(s) du site`
+            + (etat.config?.outro ? ' + image de fin' : '')
+            + ` · ${sequences * Number($('dureePhoto').value)} s de vidéo`
           : '';
         $('etapeMontage').hidden = etat.plans.length === 0;
         majBoutonAnalyse();
@@ -1900,6 +1902,23 @@
         return logoEtude;
       }
 
+      // L'image de fin est une composition finie — photo de l'équipe, texte et
+      // logo déjà dessus. On la pose telle quelle, sans rien ajouter.
+      let imageFin = null;
+      async function chargerOutro() {
+        if (imageFin !== null) return imageFin;
+        imageFin = false;
+        if (!etat.config?.outro) return imageFin;
+        try {
+          const reponse = await fetch('/outro.jpg');
+          if (!reponse.ok) throw new Error('absente');
+          imageFin = await createImageBitmap(await reponse.blob());
+        } catch {
+          imageFin = false;
+        }
+        return imageFin;
+      }
+
       function dessinerLogo(ctx, l) {
         if (!logoEtude) return;
         const largeur = Math.round(l * 0.26);
@@ -1957,10 +1976,10 @@
               .join('');
         etat.musiquesEtude = etude.musiques;
         majBoutonsMusique();
-        if (!etude.musiques.length && !locaux.length) {
-          $('noteMusique').textContent =
-            'Aucun morceau pour le moment — ajoutez-en un, il sera proposé les fois suivantes.';
-        }
+        $('noteMusique').textContent =
+          etude.musiques.length || locaux.length
+            ? ''
+            : 'Aucun morceau pour le moment — ajoutez-en un, il sera proposé les fois suivantes.';
       }
 
       $('boutonAjoutMusique').addEventListener('click', () => $('ajoutMusique').click());
@@ -2121,6 +2140,7 @@
           // l'enregistrement ferait sauter des images.
           progressionVideo('Préparation des images…', 0);
           await chargerLogo();
+          await chargerOutro();
           for (const plan of etat.plans) {
             if (plan.image) continue;
             const reponse = await fetch(adressePhoto(plan.index), {
@@ -2131,7 +2151,12 @@
           }
           const rognees = etat.plans.filter((p) => partVisible(p.image, l, h) < 0.5).length;
 
-          const total = etat.plans.length * dureePlan;
+          // L'image de fin est une séquence de plus, sans titre ni logo : elle
+          // les porte déjà.
+          const sequences = imageFin
+            ? [...etat.plans, { fin: true, image: imageFin }]
+            : [...etat.plans];
+          const total = sequences.length * dureePlan;
 
           // Capture manuelle : chaque image est réclamée après avoir été
           // dessinée. Avec la capture automatique, un onglet ralenti laisse
@@ -2159,24 +2184,19 @@
           for (;;) {
             const t = performance.now() - debut;
             if (t >= total) break;
-            const rang = Math.min(etat.plans.length - 1, Math.floor(t / dureePlan));
+            const rang = Math.min(sequences.length - 1, Math.floor(t / dureePlan));
             const avancement = (t - rang * dureePlan) / dureePlan;
 
             ctx.fillStyle = '#000';
             ctx.fillRect(0, 0, l, h);
 
-            // Fondu enchaîné : le plan précédent finit son zoom dessous.
+            // Fondu enchaîné : la séquence précédente finit son zoom dessous.
             if (rang > 0 && avancement < DUREE_FONDU) {
-              const precedent = etat.plans[rang - 1];
-              dessinerPlan(ctx, precedent, l, h, 1, zoomActif);
-              habiller(ctx, l, h, rang - 1);
+              dessinerSequence(ctx, sequences, rang - 1, l, h, 1, zoomActif);
               ctx.globalAlpha = avancement / DUREE_FONDU;
             }
-            dessinerPlan(ctx, etat.plans[rang], l, h, avancement, zoomActif);
-            habiller(ctx, l, h, rang);
+            dessinerSequence(ctx, sequences, rang, l, h, avancement, zoomActif);
             ctx.globalAlpha = 1;
-            // Le logo ne clignote pas au fondu : il est posé après, opaque.
-            dessinerLogo(ctx, l);
 
             pisteVideo.requestFrame?.();
 
@@ -2187,7 +2207,9 @@
             precedente = maintenant;
 
             progressionVideo(
-              `Image ${rang + 1} sur ${etat.plans.length} — ne quittez pas cet onglet`,
+              sequences[rang].fin
+                ? 'Image de fin — ne quittez pas cet onglet'
+                : `Image ${rang + 1} sur ${sequences.length} — ne quittez pas cet onglet`,
               t / total
             );
             // `setTimeout` plutôt que `requestAnimationFrame` : un onglet en
@@ -2245,11 +2267,32 @@
         }
       }
 
-      // Le premier plan ouvre la vidéo : commune, nature du bien et prix.
-      // Les suivants portent le nom de la pièce.
-      function habiller(ctx, l, h, rang) {
-        if (rang === 0) return dessinerCarton(ctx, l, h, etat.cartonRendu ?? {});
-        dessinerTitre(ctx, l, h, etat.plans[rang].titre);
+      /**
+       * Une séquence complète : la photo, son habillage, le logo.
+       *
+       * La première ouvre la vidéo — commune, nature du bien et prix. Les
+       * suivantes portent le nom de la pièce. La dernière, s'il y a une image
+       * de fin, ne reçoit rien : elle est déjà composée, logo compris.
+       */
+      function dessinerSequence(ctx, sequences, rang, l, h, avancement, zoomActif) {
+        const sequence = sequences[rang];
+        if (sequence.fin) {
+          // Une composition finie ne se recadre pas : on la pose entière,
+          // quitte à border de noir dans un format qui n'est pas le sien.
+          const echelle = Math.min(l / sequence.image.width, h / sequence.image.height);
+          const dl = sequence.image.width * echelle;
+          const dh = sequence.image.height * echelle;
+          ctx.drawImage(sequence.image, (l - dl) / 2, (h - dh) / 2, dl, dh);
+          return;
+        }
+        dessinerPlan(ctx, sequence, l, h, avancement, zoomActif);
+        if (rang === 0) dessinerCarton(ctx, l, h, etat.cartonRendu ?? {});
+        else dessinerTitre(ctx, l, h, sequence.titre);
+        // Le logo ne clignote pas au fondu : il est posé après, opaque.
+        const alpha = ctx.globalAlpha;
+        ctx.globalAlpha = 1;
+        dessinerLogo(ctx, l);
+        ctx.globalAlpha = alpha;
       }
 
       function progressionVideo(texte, part) {

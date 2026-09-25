@@ -162,9 +162,11 @@ export function creerApplication() {
       // chargement, pas une fois l'annonce creee : d'ici la, l'utilisateur a
       // rempli le formulaire en croyant etre protege.
       reglages: reglagesIncoherents(structure, config),
-      // Le logo de l'etude, incruste dans les videos. Sa presence se dit ici :
-      // le navigateur ne va pas le chercher pour rien et la console reste nette.
+      // Le logo et l'image de fin, incrustes dans les videos. Leur presence se
+      // dit ici : le navigateur ne va pas les chercher pour rien et la console
+      // reste nette.
       logo: fs.existsSync(path.join(ici, 'public', 'logo.png')),
+      outro: fs.existsSync(path.join(ici, 'public', 'outro.jpg')),
     });
   });
 
