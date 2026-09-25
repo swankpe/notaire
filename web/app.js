@@ -25,7 +25,13 @@ import {
   lireItem,
 } from '../src/webflow.js';
 import { lireStyle, redigerPublication, lienDuBien } from '../src/publication.js';
-import { nommerLesPieces, photosDuBien, cartonDuBien, telechargerPhoto } from '../src/video.js';
+import {
+  nommerLesPieces,
+  photosDuBien,
+  cartonDuBien,
+  codePostalSuppose,
+  telechargerPhoto,
+} from '../src/video.js';
 import { espaceDeTravail } from '../src/claude.js';
 import {
   analyserCollection,
@@ -434,11 +440,36 @@ export function creerApplication() {
     // n'en garde que l'identifiant, le carton veut le libelle.
     // La fiche de la commune est lue avec ses donnees : le code postal s'y
     // trouve souvent, alors qu'il est absent de la fiche du bien.
+    let communesVoisines = [];
     const carton = await cartonDuBien(structure, item, config, async (collectionId, id) => {
       if (!collectionId || typeof id !== 'string') return null;
       const items = await listerItems(collectionId, jeton, { avecDonnees: true });
+      communesVoisines = items.map((i) => i.nom);
       return items.find((i) => i.id === id) ?? null;
     });
+
+    // Dernier recours : demander le code postal a Claude, les communes du
+    // secteur en contexte. La reponse est une proposition — l'ecran la donne
+    // a relire, elle n'est jamais incrustee telle quelle.
+    if (!carton.codePostal && carton.commune && cleAnthropic()) {
+      try {
+        const suppose = await codePostalSuppose(carton.commune, communesVoisines, {
+          modele: config.modele,
+        });
+        if (suppose) {
+          carton.codePostal = suppose;
+          carton.origineCodePostal = 'claude';
+        }
+      } catch {
+        // Pas de code postal, pas de video ratee : la ligne restera courte.
+      }
+    }
+    if (!carton.codePostal) {
+      carton.manques.push(
+        'Code postal introuvable : ni dans la fiche du bien, ni dans celle de la commune, '
+        + 'ni dans le descriptif. Saisissez-le à la main ou ajoutez-le au CMS.'
+      );
+    }
     reponse.json({ ...resultat, photos: photos.map((p) => p.nom), carton });
   });
 

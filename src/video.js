@@ -100,6 +100,106 @@ function codePostalDans(fiche) {
   return null;
 }
 
+const sansAccents = (texte) =>
+  String(texte ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+/**
+ * Cherche le code postal dans les textes de la fiche — descriptif, titre.
+ *
+ * On ne prend pas n'importe quel groupe de cinq chiffres : un prix ecrit sans
+ * separateur en serait un. Seul compte un nombre a cinq chiffres **pose a cote
+ * du nom de la commune** : « 22300 Ploumilliau », « Ploumilliau (22300) ».
+ * C'est une lecture, pas une deduction.
+ */
+export function codePostalDansTexte(fiche, commune) {
+  if (!commune) return null;
+  const cible = sansAccents(commune);
+  if (cible.length < 3) return null;
+
+  for (const valeur of Object.values(fiche ?? {})) {
+    if (typeof valeur !== 'string') continue;
+    // Les balises deviennent des espaces : « <p>22300 Lannion</p> » doit rester lisible.
+    const texte = sansAccents(valeur.replace(/<[^>]*>/g, ' '));
+    let depuis = 0;
+    for (;;) {
+      const ou = texte.indexOf(cible, depuis);
+      if (ou === -1) break;
+      depuis = ou + cible.length;
+      const fenetre = texte.slice(Math.max(0, ou - 40), ou + cible.length + 40);
+      const trouve = fenetre.match(/(?<!\d)\d{5}(?!\d)/);
+      if (trouve) return trouve[0];
+    }
+  }
+  return null;
+}
+
+const SCHEMA_CODE_POSTAL = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['codePostal', 'certain'],
+  properties: {
+    codePostal: {
+      type: ['string', 'null'],
+      description: 'Cinq chiffres, ou null au moindre doute.',
+    },
+    certain: {
+      type: 'boolean',
+      description: 'false des qu il existe plusieurs communes de ce nom en France.',
+    },
+  },
+};
+
+/**
+ * Demande le code postal d'une commune a Claude, en dernier recours.
+ *
+ * Les autres communes de la collection servent de contexte : elles situent le
+ * departement, ce qui evite de confondre deux communes homonymes. La reponse
+ * reste une **proposition** : elle est presentee a l'utilisateur avant le
+ * rendu, jamais incrustee sans relecture.
+ */
+export async function codePostalSuppose(commune, voisines, options = {}) {
+  if (!commune) return null;
+  const client = clientClaude('la recherche du code postal');
+
+  let reponse;
+  try {
+    reponse = await client.messages.create({
+      model: options.modele || 'claude-opus-5',
+      max_tokens: 500,
+      system:
+        "Tu donnes le code postal d'une commune francaise. Les autres communes citees "
+        + 'appartiennent au meme secteur : elles indiquent le departement. '
+        + "Si plusieurs communes portent ce nom en France et que le contexte ne tranche "
+        + 'pas, ou si tu as le moindre doute, renvoie null et `certain` a false. '
+        + "Une annonce notariale ne peut pas porter un code postal approximatif.",
+      output_config: { format: { type: 'json_schema', schema: SCHEMA_CODE_POSTAL } },
+      messages: [
+        {
+          role: 'user',
+          content:
+            `Commune : ${commune}\n`
+            + (voisines?.length
+              ? `Autres communes du meme secteur : ${voisines.slice(0, 25).join(', ')}`
+              : ''),
+        },
+      ],
+    });
+  } catch (erreur) {
+    throw new Error(messageClaude(erreur));
+  }
+
+  if (reponse.stop_reason === 'refusal') return null;
+  const texte = reponse.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
+  let resultat;
+  try {
+    resultat = JSON.parse(texte);
+  } catch {
+    return null;
+  }
+  const code = String(resultat?.codePostal ?? '').trim();
+  return resultat?.certain && /^\d{5}$/.test(code) ? code : null;
+}
+
 /**
  * Ce qui s'affiche sur l'image d'ouverture : la commune, son code postal, ce
  * qu'on vend, le prix. Tout est relu dans la fiche du site — un carton
@@ -135,14 +235,13 @@ export async function cartonDuBien(structure, item, config, resoudreReference) {
   if (!champCommune) manques.push("Aucun champ commune ou ville dans la collection.");
   else if (!commune.valeur) manques.push(`Le champ « ${champCommune.displayName} » est vide pour ce bien.`);
 
+  // Trois sources, de la plus sure a la moins sure. L'origine est rendue avec
+  // la valeur : l'ecran dit d'ou elle vient, et ce qui reste a verifier.
   let codePostal = (await lire(champCodePostal)).valeur;
-  if (!codePostal) codePostal = codePostalDans(commune.fiche);
-  if (!codePostal) {
-    manques.push(
-      champCodePostal
-        ? `Le champ « ${champCodePostal.displayName} » est vide pour ce bien.`
-        : "Aucun champ code postal, ni dans la fiche du bien ni dans celle de la commune."
-    );
+  let origineCodePostal = codePostal ? 'fiche' : null;
+  if (!codePostal && (codePostal = codePostalDans(commune.fiche))) origineCodePostal = 'commune';
+  if (!codePostal && (codePostal = codePostalDansTexte(donnees, commune.valeur))) {
+    origineCodePostal = 'descriptif';
   }
 
   const type = await lire(champType);
@@ -158,6 +257,7 @@ export async function cartonDuBien(structure, item, config, resoudreReference) {
   return {
     commune: commune.valeur,
     codePostal,
+    origineCodePostal,
     // « maison » saisi en minuscules doit s'afficher « Maison a vendre ».
     typeDeBien: type.valeur ? type.valeur[0].toUpperCase() + type.valeur.slice(1) : null,
     // Le prix affiche est celui de la fiche, honoraires de negociation

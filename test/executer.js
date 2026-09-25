@@ -160,6 +160,7 @@ await verifier("le carton de la video ne montre jamais un identifiant Webflow", 
   const carton = await cartonDuBien(structure, item, {}, villes);
   assert.equal(carton.commune, 'Ploumilliau');
   assert.equal(carton.codePostal, '22300', 'repris dans la fiche de la commune');
+  assert.equal(carton.origineCodePostal, 'commune', "l ecran doit pouvoir dire d ou ca vient");
   assert.equal(carton.typeDeBien, 'Maison', '« maison » saisi en minuscules est capitalise');
   assert.equal(carton.prix, 147900);
   assert.deepEqual(carton.manques, [], 'rien a signaler quand tout est trouve');
@@ -174,8 +175,8 @@ await verifier("le carton de la video ne montre jamais un identifiant Webflow", 
   const perdu = await cartonDuBien(structure, item, {}, async () => null);
   assert.equal(perdu.commune, null, "mieux vaut un carton incomplet qu'un identifiant affiche");
   assert.equal(perdu.codePostal, null);
-  assert.equal(perdu.manques.length, 2, 'commune et code postal signales');
-  assert.match(perdu.manques.join(' '), /code postal/i);
+  assert.equal(perdu.origineCodePostal, null);
+  assert.equal(perdu.manques.length, 1, 'la commune est signalee ; le code postal l est par la route');
 
   // Garde-fou : meme un champ texte contenant un identifiant est ecarte.
   const texte = analyserCollection({
@@ -188,6 +189,50 @@ await verifier("le carton de la video ne montre jamais un identifiant Webflow", 
     (await cartonDuBien(texte, { fieldData: { commune: 'Lannion' } }, {}, async () => null)).commune,
     'Lannion'
   );
+});
+
+await verifier("le code postal se lit dans le descriptif, jamais au hasard", async () => {
+  const { codePostalDansTexte, cartonDuBien } = await import('../src/video.js');
+
+  // Colle au nom de la commune : c'est une lecture.
+  assert.equal(
+    codePostalDansTexte({ d: '<p>Maison a vendre a 22300 Ploumilliau.</p>' }, 'Ploumilliau'),
+    '22300'
+  );
+  assert.equal(
+    codePostalDansTexte({ d: 'Belle vue — PLOUMILLIAU (22300), proche bourg' }, 'ploumilliau'),
+    '22300',
+    'accents et majuscules ne doivent pas compter'
+  );
+
+  // Un prix ecrit sans separateur ne doit jamais passer pour un code postal.
+  assert.equal(
+    codePostalDansTexte({ d: '<p>Maison de bourg, prix 147900 euros.</p>' }, 'Lannion'),
+    null,
+    'la commune n est pas citee : on ne prend rien'
+  );
+  assert.equal(
+    codePostalDansTexte({ d: 'Lannion. ' + 'x'.repeat(120) + ' 147900 euros' }, 'Lannion'),
+    null,
+    'cinq chiffres trop loin du nom ne comptent pas'
+  );
+
+  // Troisieme source, quand la fiche de la commune ne dit rien.
+  const structure = analyserCollection({
+    fields: [
+      { slug: 'ville', displayName: 'ville', type: 'Reference',
+        validations: { collectionId: 'colVilles' } },
+      { slug: 'descriptif', displayName: 'descriptif', type: 'RichText' },
+    ],
+  });
+  const carton = await cartonDuBien(
+    structure,
+    { fieldData: { ville: 'a'.repeat(24), descriptif: '<p>Au coeur de 22300 Ploumilliau.</p>' } },
+    {},
+    async () => ({ nom: 'Ploumilliau', donnees: { name: 'Ploumilliau' } })
+  );
+  assert.equal(carton.codePostal, '22300');
+  assert.equal(carton.origineCodePostal, 'descriptif');
 });
 
 await verifier("un champ precis l'emporte sur un champ vague", async () => {

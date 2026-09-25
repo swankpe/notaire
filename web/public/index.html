@@ -205,6 +205,14 @@
         letter-spacing: 0.04em;
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
       }
+      .lignes-carton { display: grid; gap: 8px; }
+      .lignes-carton input {
+        width: 100%;
+        border: 1px solid var(--bord);
+        border-radius: 6px;
+        padding: 8px 10px;
+        font: inherit;
+      }
       .reglages-video {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -415,6 +423,19 @@
               <span class="libre">(corrigez les titres, glissez pour réordonner)</span>
             </h2>
             <div class="grille-photos" id="grillePlans"></div>
+
+            <div class="champ" id="champsCarton">
+              <label for="cartonLieu">
+                Image d'ouverture
+                <span class="aide">ces trois lignes s'affichent sur la première image</span>
+              </label>
+              <div class="lignes-carton">
+                <input id="cartonLieu" placeholder="Commune - code postal" maxlength="60" />
+                <input id="cartonTitre" placeholder="Maison à vendre" maxlength="40" />
+                <input id="cartonPrix" placeholder="147 900 €" maxlength="24" />
+              </div>
+              <div class="aide" id="noteCarton"></div>
+            </div>
 
             <div class="reglages-video">
               <div class="champ">
@@ -737,6 +758,7 @@
       $('choixBien').addEventListener('change', () => {
         etat.plans = [];
         etat.bienVideo = null;
+        remplirCarton(null);
         $('avisVideo').innerHTML = '';
         $('resultatVideo').innerHTML = '';
         $('etapePost').hidden = true;
@@ -1580,22 +1602,40 @@
 
       etat.plans = [];
       etat.bienVideo = null;
-      etat.carton = null;
+      etat.cartonRendu = null;
+      etat.manquesCarton = [];
 
       // Le carton d'ouverture se compose de ce que la fiche contient, et de
       // rien d'autre. Ce qui manque est dit, pas comblé : un prix ou une
       // commune inventés sur une annonce notariale, c'est une faute.
-      function composerCarton(carton) {
-        const lieu = [carton?.commune, carton?.codePostal].filter(Boolean).join(' - ');
-        return {
-          lieu: lieu || null,
-          titre: carton?.typeDeBien ? `${carton.typeDeBien} à vendre` : null,
-          prix: typeof carton?.prix === 'number' ? euros.format(carton.prix) : null,
-          // Le serveur seul connaît la structure de la collection : c'est lui
-          // qui dit ce qui manque, et où.
-          manques: carton?.manques ?? [],
-        };
+      // Les trois lignes du carton sont proposées, jamais imposées : elles
+      // s'affichent dans des champs modifiables avant le rendu. Le code postal
+      // peut venir du descriptif ou de Claude — on dit lequel, et qu'il est à
+      // vérifier.
+      const ORIGINES = {
+        fiche: null,
+        commune: 'Code postal repris de la fiche de la commune.',
+        descriptif: 'Code postal trouvé dans le descriptif, à côté du nom de la commune — à vérifier.',
+        claude: 'Code postal proposé par Claude d\'après le nom de la commune — à vérifier.',
+      };
+
+      function remplirCarton(carton) {
+        $('cartonLieu').value = [carton?.commune, carton?.codePostal].filter(Boolean).join(' - ');
+        $('cartonTitre').value = carton?.typeDeBien ? `${carton.typeDeBien} à vendre` : '';
+        $('cartonPrix').value =
+          typeof carton?.prix === 'number' ? euros.format(carton.prix) : '';
+        $('noteCarton').textContent = ORIGINES[carton?.origineCodePostal] ?? '';
+        // Le serveur seul connaît la structure de la collection : c'est lui
+        // qui dit ce qui manque, et où.
+        return carton?.manques ?? [];
       }
+
+      // Ce qui sera réellement dessiné : ce que l'utilisateur a sous les yeux.
+      const cartonAffiche = () => ({
+        lieu: $('cartonLieu').value.trim() || null,
+        titre: $('cartonTitre').value.trim() || null,
+        prix: $('cartonPrix').value.trim() || null,
+      });
 
       // Les photos ne transitent pas par le navigateur pour monter : elles
       // sont demandées au serveur, qui les relit sur le site.
@@ -1698,7 +1738,7 @@
           // L'ordre proposé est appliqué ; le serveur garantit que chaque
           // photo revient une fois et une seule.
           etat.bienVideo = itemId;
-          etat.carton = composerCarton(carton);
+          etat.manquesCarton = remplirCarton(carton);
           etat.plans = plans.map(({ photo, titre }) => ({
             index: photo,
             nom: photos?.[photo] ?? `photo ${photo + 1}`,
@@ -1707,7 +1747,7 @@
             image: null,
           }));
           afficherPlans();
-          const manques = etat.carton.manques;
+          const manques = etat.manquesCarton;
           if (manques.length) {
             avis($('avisVideo'), 'alerte', "Image d'ouverture incomplète", manques);
           }
@@ -1942,6 +1982,10 @@
           return;
         }
 
+        // On fige ici ce que l'écran affiche : le carton ne doit pas changer
+        // sous le rendu si l'utilisateur tape pendant l'enregistrement.
+        etat.cartonRendu = cartonAffiche();
+
         rendEnCours = true;
         $('boutonRendu').disabled = true;
         $('resultatVideo').innerHTML = '';
@@ -2089,7 +2133,7 @@
       // Le premier plan ouvre la vidéo : commune, nature du bien et prix.
       // Les suivants portent le nom de la pièce.
       function habiller(ctx, l, h, rang) {
-        if (rang === 0) return dessinerCarton(ctx, l, h, etat.carton ?? {});
+        if (rang === 0) return dessinerCarton(ctx, l, h, etat.cartonRendu ?? {});
         dessinerTitre(ctx, l, h, etat.plans[rang].titre);
       }
 

@@ -131,11 +131,24 @@ pas hors d'un vrai navigateur.
   `/api/pieces`, appelé une fois. Et le navigateur demande **une seule taille**
   (`LARGEUR_PHOTO`) pour la vignette et pour le rendu : deux tailles doublaient
   le nombre de lectures, donc l'attente.
-- **Le carton d'ouverture ne devine rien non plus.** Commune, code postal et
-  type de bien sont reconnus à leur intitulé (`choisirChampParNom`) ou imposés
-  par configuration. Un champ absent fait disparaître sa ligne, et
-  l'utilisateur est prévenu — on n'écrit pas « Maison à vendre » sur une fiche
-  qui ne dit pas que c'est une maison.
+- **Le carton d'ouverture est proposé, jamais imposé.** Ses trois lignes
+  s'affichent dans des champs modifiables avant le rendu : ce qui est dessiné
+  est ce que l'utilisateur a sous les yeux. C'est ce qui rend acceptables des
+  sources moins sûres que le CMS.
+- **Le code postal a trois sources, dans cet ordre, et son origine est
+  rendue avec lui** : la fiche du bien, puis celle de la commune (souvent une
+  collection à part), puis le descriptif — et seulement un nombre à cinq
+  chiffres **posé à côté du nom de la commune**, jamais n'importe lequel : un
+  prix écrit sans séparateur en serait un. En dernier recours `/api/pieces`
+  demande à Claude, les communes du secteur en contexte pour lever les
+  homonymes, et la réponse est marquée « à vérifier » à l'écran. Ne jamais
+  supprimer cet affichage d'origine : c'est lui qui distingue une lecture
+  d'une supposition.
+- **Commune et type de bien** sont reconnus à leur intitulé
+  (`choisirChampParNom`, qui essaie ses indices **du plus précis au plus
+  vague**, sans quoi « Type de chauffage » l'emporterait sur « Type de bien »)
+  ou imposés par configuration. Un champ absent fait disparaître sa ligne, et
+  l'utilisateur est prévenu.
 - **Un titre de pièce est obligatoire** sur toutes les images sauf la première,
   qui porte le carton. Le rendu refuse de partir sinon : une image muette au
   milieu d'une vidéo publiée se remarque.

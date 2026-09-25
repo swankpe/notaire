@@ -238,10 +238,22 @@ la galerie — et si la principale figure aussi dans la galerie, elle ne passe
 qu'une fois.
 
 **La première image ouvre la vidéo** : commune et code postal, « Maison à
-vendre », et le prix dans un cadre. Tout est relu dans la fiche du site. Un
-champ absent fait disparaître sa ligne et vous êtes prévenu — on n'écrit pas
-« Maison à vendre » sur une fiche qui ne dit pas que c'est une maison. Le prix
-affiché est celui de la fiche, **honoraires de négociation inclus**.
+vendre », et le prix dans un cadre. Les trois lignes sont **remplies depuis la
+fiche du site puis données à relire** dans des champs modifiables : ce qui est
+dessiné est ce que vous avez sous les yeux. Le prix affiché est celui de la
+fiche, **honoraires de négociation inclus**.
+
+Le code postal est cherché à trois endroits, du plus sûr au moins sûr : le
+champ du bien, la fiche de la commune, puis le descriptif — et seulement un
+nombre à cinq chiffres **collé au nom de la commune**, pour qu'un prix écrit
+sans séparateur ne soit jamais pris pour un code postal. S'il reste
+introuvable, Claude le propose d'après le nom de la commune. **Dans les deux
+derniers cas l'écran vous dit d'où vient la valeur et qu'elle est à
+vérifier** — corrigez-la sur place si besoin.
+
+Le plus propre reste d'ajouter un champ « Code postal » dans votre collection
+Villes : renseigné une fois, il sert pour tous les biens de la commune et
+aucune supposition n'est nécessaire.
 
 Les images suivantes portent le nom de la pièce, incrusté en bas à gauche dans
 un cadre blanc filaire ; les plans s'enchaînent en fondu. **Un titre est
