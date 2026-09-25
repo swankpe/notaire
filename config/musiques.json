@@ -1,0 +1,10 @@
+{
+  "_lisezMoi": "Origine et licence des morceaux de web/public/musiques/. La clé est le nom du fichier. Voir web/public/musiques/LISEZMOI.txt.",
+  "_exemple": {
+    "piano-calme.mp3": {
+      "titre": "Piano calme",
+      "source": "https://pixabay.com/music/…",
+      "licence": "Licence Pixabay — usage commercial, sans attribution"
+    }
+  }
+}

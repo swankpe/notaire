@@ -1,0 +1,31 @@
+Bibliothèque de musiques de l'étude.
+====================================
+
+Déposez ici les fichiers MP3 (ou M4A, WAV) que vous voulez voir proposés dans
+l'onglet Facebook, au moment de monter une vidéo. Le nom du fichier sert
+d'étiquette : « Piano calme.mp3 » apparaîtra comme « Piano calme ».
+
+Les morceaux placés ici sont déployés avec l'outil : tout le monde à l'étude
+les voit. C'est le bon endroit pour les morceaux validés.
+
+Vous pouvez aussi ajouter un morceau depuis l'écran, sans passer par ici : il
+reste alors dans votre navigateur, sur votre poste uniquement.
+
+LA LICENCE EST L'AFFAIRE DE L'ÉTUDE
+-----------------------------------
+« Libre de droits » ne veut pas dire « gratuit », et une page professionnelle
+relève de l'usage commercial. Ne déposez ici que des morceaux dont la licence
+autorise explicitement cet usage, et gardez-en la preuve.
+
+Renseignez-la dans config/musiques.json, à côté du nom du fichier :
+
+  {
+    "piano-calme.mp3": {
+      "titre": "Piano calme",
+      "source": "https://pixabay.com/music/...",
+      "licence": "Licence Pixabay — usage commercial, sans attribution"
+    }
+  }
+
+Ce fichier n'est pas obligatoire : sans lui, le nom du fichier suffit. Mais
+dans deux ans, personne ne se souviendra d'où vient un morceau.

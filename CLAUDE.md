@@ -170,10 +170,17 @@ pas hors d'un vrai navigateur.
   accepté. Le code parcourt `CODECS` par ordre de préférence, avec une liste
   distincte selon qu'il y a du son, et **affiche le format obtenu** — sans quoi
   un refus de Facebook serait inexplicable.
-- La musique reste sur le poste : elle est décodée dans le navigateur et mixée
-  dans l'enregistrement via `MediaStreamDestination`. Elle ne part jamais vers
-  le serveur, et aucun fichier musical n'est versionné — la licence est
-  l'affaire de l'étude.
+- La musique est décodée dans le navigateur et mixée dans l'enregistrement via
+  `MediaStreamDestination` ; un morceau ajouté depuis l'écran est gardé en
+  IndexedDB et **ne part jamais vers le serveur**. La bibliothèque partagée,
+  elle, est le contenu de `web/public/musiques/`, listé par `/api/musiques`,
+  avec origine et licence dans `config/musiques.json`.
+- **Ne jamais committer de fichier musical sans licence vérifiée.** La
+  bibliothèque est livrée vide à dessein : les sources CC0 atteignables
+  demandent un compte (Free Music Archive, Pixabay) ou n'offrent que du MIDI et
+  du symphonique, et surtout **on ne peut pas juger un morceau sans
+  l'entendre**. C'est à l'étude de choisir ; le code ne fournit que le
+  mécanisme et la trace de la licence.
 - `exigerSession` échoue **fermé** (503) quand `surVercel && !protectionActive()`.
   Ne pas assouplir : sur Vercel une variable ajoutée après coup n'est prise en
   compte qu'au déploiement suivant, et le fail-open serait silencieux.

@@ -61,6 +61,7 @@ import {
 } from '../src/auth.js';
 
 const ici = path.dirname(fileURLToPath(import.meta.url));
+const racine = path.join(ici, '..');
 
 export function creerApplication() {
   const app = express();
@@ -471,6 +472,39 @@ export function creerApplication() {
       );
     }
     reponse.json({ ...resultat, photos: photos.map((p) => p.nom), carton });
+  });
+
+  // ── Bibliotheque de musiques de l'etude ─────────────────────────────────
+  //
+  // Les morceaux deposes dans web/public/musiques/ sont deployes avec l'outil
+  // et proposes a tout le monde. Le fichier sert de source, la configuration
+  // ne porte que l'origine et la licence — qui engagent l'etude.
+  const EXTENSIONS_AUDIO = new Set(['.mp3', '.m4a', '.wav', '.ogg', '.aac']);
+
+  app.get('/api/musiques', (requete, reponse) => {
+    const dossier = path.join(ici, 'public', 'musiques');
+    let fiches = {};
+    try {
+      fiches = JSON.parse(fs.readFileSync(path.join(racine, 'config', 'musiques.json'), 'utf8'));
+    } catch {
+      // Pas de fiche de licence : le nom du fichier suffit a faire tourner.
+    }
+
+    let fichiers = [];
+    try {
+      fichiers = fs.readdirSync(dossier).filter((n) => EXTENSIONS_AUDIO.has(path.extname(n).toLowerCase()));
+    } catch {
+      fichiers = [];
+    }
+
+    reponse.json({
+      musiques: fichiers.sort((a, b) => a.localeCompare(b, 'fr')).map((nom) => ({
+        fichier: nom,
+        adresse: '/musiques/' + encodeURIComponent(nom),
+        titre: fiches[nom]?.titre ?? path.basename(nom, path.extname(nom)),
+        licence: fiches[nom]?.licence ?? null,
+      })),
+    });
   });
 
   /**

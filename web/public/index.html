@@ -205,6 +205,8 @@
         letter-spacing: 0.04em;
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
       }
+      .barre-musique { display: flex; gap: 8px; margin-top: 8px; }
+      .barre-musique button { font-size: 13px; padding: 6px 10px; }
       .lignes-carton { display: grid; gap: 8px; }
       .lignes-carton input {
         width: 100%;
@@ -455,11 +457,20 @@
                 </select>
               </div>
               <div class="champ">
-                <label for="selecteurMusique">
-                  Musique<span class="aide">facultative, un fichier de votre poste</span>
+                <label for="choixMusique">
+                  Musique<span class="aide">facultative</span>
                 </label>
-                <input type="file" id="selecteurMusique" accept="audio/*" />
-                <div class="aide" id="noteMusique" style="margin-top: 6px"></div>
+                <select id="choixMusique"><option value="">Aucune</option></select>
+                <input type="file" id="ajoutMusique" accept="audio/*" hidden />
+                <div class="barre-musique">
+                  <button type="button" class="secondaire" id="boutonAjoutMusique">
+                    Ajouter un morceau…
+                  </button>
+                  <button type="button" class="secondaire" id="boutonRetirerMusique" hidden>
+                    Retirer
+                  </button>
+                </div>
+                <div class="aide" id="noteMusique"></div>
               </div>
               <div class="champ">
                 <label for="effetVideo">Mouvement</label>
@@ -610,7 +621,10 @@
           for (const [vue, identifiant] of Object.entries(VUES)) {
             $(identifiant).hidden = vue !== choisie;
           }
-          if (choisie === 'facebook') chargerBiens();
+          if (choisie === 'facebook') {
+            chargerBiens();
+            chargerMusiques();
+          }
         })
       );
 
@@ -1896,28 +1910,129 @@
 
       // ── Musique ───────────────────────────────────────────────────────
       //
-      // Le fichier reste sur le poste : il est décodé ici et mixé dans
-      // l'enregistrement, il ne part jamais vers le serveur.
+      // Deux origines dans la même liste : les morceaux déposés dans
+      // web/public/musiques/, déployés avec l'outil et vus par toute l'étude,
+      // et ceux ajoutés depuis le poste, qui restent dans ce navigateur. Un
+      // fichier ajouté ici ne part jamais vers le serveur.
       let musique = null;
+      const BASE_LOCALE = 'notaire-musiques';
 
-      $('selecteurMusique').addEventListener('change', async (ev) => {
-        const fichier = ev.target.files?.[0];
-        musique = null;
-        if (!fichier) return ($('noteMusique').textContent = '');
-        $('noteMusique').textContent = 'Lecture du fichier…';
-        try {
-          const contexte = new AudioContext();
-          const tampon = await contexte.decodeAudioData(await fichier.arrayBuffer());
-          await contexte.close();
-          musique = { nom: fichier.name, tampon };
+      function ouvrirBase() {
+        return new Promise((resoudre, rejeter) => {
+          const demande = indexedDB.open(BASE_LOCALE, 1);
+          demande.onupgradeneeded = () => demande.result.createObjectStore('morceaux');
+          demande.onsuccess = () => resoudre(demande.result);
+          demande.onerror = () => rejeter(demande.error);
+        });
+      }
+
+      function surBase(mode, action) {
+        return ouvrirBase().then(
+          (base) =>
+            new Promise((resoudre, rejeter) => {
+              const transaction = base.transaction('morceaux', mode);
+              const demande = action(transaction.objectStore('morceaux'));
+              demande.onsuccess = () => resoudre(demande.result);
+              demande.onerror = () => rejeter(demande.error);
+            })
+        );
+      }
+
+      // Une navigation privée ou un stockage bloqué ne doit pas priver de
+      // vidéo : sans base locale, seule la bibliothèque de l'étude s'affiche.
+      const morceauxDuPoste = () =>
+        surBase('readonly', (magasin) => magasin.getAll()).catch(() => []);
+
+      async function chargerMusiques() {
+        const liste = $('choixMusique');
+        const etude = await appel('/api/musiques').catch(() => ({ musiques: [] }));
+        const locaux = await morceauxDuPoste();
+
+        liste.innerHTML = '<option value="">Aucune</option>'
+          + etude.musiques
+              .map((m) => `<option value="etude:${echapper(m.fichier)}">${echapper(m.titre)}</option>`)
+              .join('')
+          + locaux
+              .map((m) => `<option value="poste:${echapper(m.nom)}">${echapper(m.nom)} (ce poste)</option>`)
+              .join('');
+        etat.musiquesEtude = etude.musiques;
+        majBoutonsMusique();
+        if (!etude.musiques.length && !locaux.length) {
           $('noteMusique').textContent =
-            `${fichier.name} · ${Math.round(tampon.duration)} s`
-            + ' — reprise en boucle si la vidéo est plus longue.';
+            'Aucun morceau pour le moment — ajoutez-en un, il sera proposé les fois suivantes.';
+        }
+      }
+
+      $('boutonAjoutMusique').addEventListener('click', () => $('ajoutMusique').click());
+
+      $('ajoutMusique').addEventListener('change', async (ev) => {
+        const fichier = ev.target.files?.[0];
+        ev.target.value = '';
+        if (!fichier) return;
+        try {
+          await surBase('readwrite', (magasin) =>
+            magasin.put({ nom: fichier.name, blob: fichier }, fichier.name));
         } catch {
           $('noteMusique').textContent =
-            "Fichier audio illisible. Les MP3, M4A et WAV passent ; essayez un autre format.";
+            "Ce navigateur refuse d'enregistrer le morceau : il servira cette fois-ci seulement.";
+        }
+        await chargerMusiques();
+        $('choixMusique').value = 'poste:' + fichier.name;
+        // Remplir une liste ne déclenche pas « change » : les boutons qui en
+        // dépendent doivent être remis d'aplomb à la main.
+        majBoutonsMusique();
+        await choisirMusique(fichier);
+      });
+
+      $('boutonRetirerMusique').addEventListener('click', async () => {
+        const [origine, cle] = ($('choixMusique').value || '').split(/:(.*)/s);
+        if (origine !== 'poste') return;
+        await surBase('readwrite', (magasin) => magasin.delete(cle)).catch(() => {});
+        musique = null;
+        await chargerMusiques();
+        $('choixMusique').value = '';
+        majBoutonsMusique();
+        $('noteMusique').textContent = 'Morceau retiré de ce poste.';
+      });
+
+      $('choixMusique').addEventListener('change', async () => {
+        const valeur = $('choixMusique').value;
+        majBoutonsMusique();
+        if (!valeur) {
+          musique = null;
+          $('noteMusique').textContent = '';
+          return;
+        }
+        const [origine, cle] = valeur.split(/:(.*)/s);
+        try {
+          if (origine === 'etude') {
+            const fiche = etat.musiquesEtude.find((m) => m.fichier === cle);
+            $('noteMusique').textContent = 'Lecture du morceau…';
+            const reponse = await fetch(fiche.adresse, { credentials: 'same-origin' });
+            await choisirMusique(await reponse.blob(), fiche.titre, fiche.licence);
+          } else {
+            const enregistre = await surBase('readonly', (magasin) => magasin.get(cle));
+            await choisirMusique(enregistre.blob, cle);
+          }
+        } catch {
+          musique = null;
+          $('noteMusique').textContent = 'Morceau illisible. Essayez un MP3, un M4A ou un WAV.';
         }
       });
+
+      function majBoutonsMusique() {
+        $('boutonRetirerMusique').hidden = !$('choixMusique').value.startsWith('poste:');
+      }
+
+      async function choisirMusique(source, nom, licence) {
+        const contexte = new AudioContext();
+        const tampon = await contexte.decodeAudioData(await source.arrayBuffer());
+        await contexte.close();
+        musique = { nom: nom ?? source.name, tampon };
+        $('noteMusique').textContent =
+          `${Math.round(tampon.duration)} s — repris en boucle si la vidéo est plus longue.`
+          + (licence ? ` · ${licence}` : '');
+      }
 
       /**
        * Prépare la piste sonore : boucle si la musique est plus courte que la

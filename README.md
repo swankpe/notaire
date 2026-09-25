@@ -261,10 +261,25 @@ obligatoire sur chacune** : le rendu refuse de partir tant qu'il en manque un,
 parce qu'une image muette au milieu d'une vidéo publiée se remarque. Retirez
 la photo ou donnez-lui un titre.
 
-Vous pouvez ajouter **une musique** : choisissez un fichier de votre poste, il
-est mixé dans la vidéo avec un fondu à l'ouverture et à la fermeture, et repris
-en boucle s'il est plus court que le montage. Le fichier ne quitte jamais votre
-ordinateur. **La licence est votre affaire** : voir plus bas. Claude propose un
+Vous pouvez ajouter **une musique**, choisie dans une liste à deux étages :
+
+- **la bibliothèque de l'étude** — les fichiers déposés dans
+  `web/public/musiques/`, déployés avec l'outil et visibles par tout le monde ;
+- **vos morceaux** — ajoutés depuis l'écran avec « Ajouter un morceau… ». Ils
+  restent dans votre navigateur, sur votre poste, et vous sont reproposés les
+  fois suivantes. Ils ne partent jamais vers le serveur.
+
+Le morceau est mixé dans la vidéo avec un fondu à l'ouverture et à la
+fermeture, et repris en boucle s'il est plus court que le montage.
+
+**La bibliothèque est livrée vide, et c'est voulu.** Choisir la musique de
+fond d'une étude notariale demande de l'écouter ; c'est votre oreille, pas la
+mienne. Comptez dix minutes une fois pour toutes : sur
+[Pixabay Music](https://pixabay.com/music/), filtrez par ambiance et durée,
+écoutez, téléchargez quatre ou cinq morceaux instrumentaux calmes de 40 à 60 s,
+puis déposez-les dans `web/public/musiques/` et notez leur licence dans
+`config/musiques.json`. Le mode d'emploi complet est dans
+`web/public/musiques/LISEZMOI.txt`. Claude propose un
 titre pour chacune (« Cuisine », « Grange », « Terrain »…) et les remet dans un
 ordre de visite — on arrive par la façade, on traverse la maison, on ressort
 par les annexes et le terrain.

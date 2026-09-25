@@ -400,6 +400,14 @@ const enJson = (corps) => ({
   body: JSON.stringify(corps),
 });
 
+await verifier('la bibliotheque de musiques se lit dans le dossier', async () => {
+  const { statut, corps } = await appel('/api/musiques');
+  assert.equal(statut, 200);
+  assert.ok(Array.isArray(corps.musiques), 'une liste, meme vide');
+  // Le dossier ne contient que le mode d'emploi : aucun fichier audio.
+  assert.deepEqual(corps.musiques, [], 'un .txt n est pas un morceau');
+});
+
 await verifier('la reconnaissance des pieces exige un bien', async () => {
   const { statut, corps } = await appel('/api/pieces', enJson({}));
   assert.equal(statut, 400);
