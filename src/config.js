@@ -36,6 +36,11 @@ export const CONFIG_PAR_DEFAUT = {
   // Noms ou slugs des champs que l'etude veut toujours voir remplis, en plus
   // de ceux que Webflow declare obligatoires. Exemple : ['Ville', 'Office'].
   champsObligatoires: [],
+  // Champs repris sur l'image d'ouverture des videos. null = reconnaissance
+  // automatique d'apres l'intitule du champ.
+  champCommune: null,
+  champCodePostal: null,
+  champTypeDeBien: null,
   // Consignes libres transmises a Claude pour la lecture des fiches
   // (vocabulaire de l'etude, conventions de redaction, mentions obligatoires...).
   consignes: '',
@@ -106,6 +111,7 @@ export function ecrireConfig(config) {
     'siteId', 'siteNom', 'collectionId', 'collectionNom',
     'champImagePrincipale', 'champGalerie', 'champFichePdf', 'champPrix',
     'consignes', 'photoLargeurMax', 'photoQualite', 'modele', 'champsObligatoires',
+    'champCommune', 'champCodePostal', 'champTypeDeBien',
   ];
   const reglages = {};
   for (const cle of aGarder) {

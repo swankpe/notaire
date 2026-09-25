@@ -211,6 +211,13 @@
         gap: 0 16px;
         margin-top: 18px;
       }
+      .plan .etiquette-plan {
+        display: block;
+        font-size: 12.5px;
+        color: var(--encre-doux);
+        font-style: italic;
+        padding: 6px 2px;
+      }
       .plan .titre {
         width: 100%;
         border: 1px solid var(--bord);
@@ -425,6 +432,13 @@
                   <option value="2.5">2,5 secondes</option>
                   <option value="3" selected>3 secondes — posé</option>
                 </select>
+              </div>
+              <div class="champ">
+                <label for="selecteurMusique">
+                  Musique<span class="aide">facultative, un fichier de votre poste</span>
+                </label>
+                <input type="file" id="selecteurMusique" accept="audio/*" />
+                <div class="aide" id="noteMusique" style="margin-top: 6px"></div>
               </div>
               <div class="champ">
                 <label for="effetVideo">Mouvement</label>
@@ -1539,17 +1553,26 @@
         '1:1': { l: 1080, h: 1080 },
         '16:9': { l: 1920, h: 1080 },
       };
-      // Par ordre de préférence : Facebook veut du H.264. Les navigateurs sans
-      // codec propriétaire retomberont plus bas dans la liste — on le dira.
+      // Par ordre de préférence : Facebook veut du H.264, et de l'AAC quand il y
+      // a du son. Sans le demander, un navigateur met de l'Opus dans le MP4 —
+      // techniquement valide, mal accepté. Les navigateurs sans codec
+      // propriétaire retomberont plus bas dans la liste : on le dira.
+      // `son: null` laisse le navigateur choisir, faute de mieux.
       const CODECS = [
-        ['video/mp4;codecs=avc1.42E01E', 'MP4 (H.264)', 'mp4'],
-        ['video/mp4;codecs=avc1', 'MP4 (H.264)', 'mp4'],
-        ['video/mp4', 'MP4', 'mp4'],
-        ['video/webm;codecs=vp9', 'WebM (VP9)', 'webm'],
-        ['video/webm', 'WebM', 'webm'],
+        { type: 'video/mp4;codecs=avc1.42E01E,mp4a.40.2', son: true, nom: 'MP4 (H.264 + AAC)', ext: 'mp4' },
+        { type: 'video/mp4;codecs=avc1,mp4a.40.2', son: true, nom: 'MP4 (H.264 + AAC)', ext: 'mp4' },
+        { type: 'video/mp4;codecs=avc1.42E01E', son: false, nom: 'MP4 (H.264)', ext: 'mp4' },
+        { type: 'video/mp4;codecs=avc1', son: false, nom: 'MP4 (H.264)', ext: 'mp4' },
+        { type: 'video/mp4', son: null, nom: 'MP4', ext: 'mp4' },
+        { type: 'video/webm;codecs=vp9,opus', son: true, nom: 'WebM (VP9)', ext: 'webm' },
+        { type: 'video/webm;codecs=vp9', son: false, nom: 'WebM (VP9)', ext: 'webm' },
+        { type: 'video/webm', son: null, nom: 'WebM', ext: 'webm' },
       ];
-      const codecDisponible = () =>
-        CODECS.find(([type]) => window.MediaRecorder?.isTypeSupported(type)) ?? null;
+      const codecDisponible = (avecSon) =>
+        CODECS.find(
+          (c) =>
+            (c.son === null || c.son === avecSon) && window.MediaRecorder?.isTypeSupported(c.type)
+        ) ?? null;
 
       const DUREE_FONDU = 0.14; // part du plan consacrée au fondu enchaîné
       const ZOOM_DEPART = 1.02;
@@ -1557,6 +1580,28 @@
 
       etat.plans = [];
       etat.bienVideo = null;
+      etat.carton = null;
+
+      // Le carton d'ouverture se compose de ce que la fiche contient, et de
+      // rien d'autre. Ce qui manque est dit, pas comblé : un prix ou une
+      // commune inventés sur une annonce notariale, c'est une faute.
+      function composerCarton(carton) {
+        const manques = [];
+        const lieu = [carton?.commune, carton?.codePostal].filter(Boolean).join(' - ');
+        if (!carton?.commune) manques.push('Commune absente de la fiche.');
+        if (!carton?.typeDeBien) {
+          manques.push("Type de bien absent de la fiche : la ligne « … à vendre » ne s'affichera pas.");
+        }
+        if (typeof carton?.prix !== 'number') {
+          manques.push('Prix absent de la fiche : le cadre du prix ne sera pas affiché.');
+        }
+        return {
+          lieu: lieu || null,
+          titre: carton?.typeDeBien ? `${carton.typeDeBien} à vendre` : null,
+          prix: typeof carton?.prix === 'number' ? euros.format(carton.prix) : null,
+          manques,
+        };
+      }
 
       // Les photos ne transitent pas par le navigateur pour monter : elles
       // sont demandées au serveur, qui les relit sur le site à la taille
@@ -1579,8 +1624,10 @@
               <div class="photo plan" draggable="true" data-rang="${rang}">
                 <img src="${plan.apercu}" alt="${echapper(plan.nom)}" />
                 <div class="meta">
-                  <input class="titre" data-titre="${rang}" value="${echapper(plan.titre)}"
-                         placeholder="sans texte" maxlength="24" />
+                  ${rang === 0
+                    ? '<span class="etiquette-plan">image d\'ouverture</span>'
+                    : `<input class="titre" data-titre="${rang}" value="${echapper(plan.titre)}"
+                              placeholder="titre obligatoire" maxlength="24" required />`}
                 </div>
                 <div class="actions">
                   <button type="button" data-plan="gauche" data-rang="${rang}" title="Reculer">&larr;</button>
@@ -1643,7 +1690,7 @@
       // ── Reconnaissance des pièces ─────────────────────────────────────
       async function reconnaitrePieces(itemId) {
         try {
-          const { plans, remarques, photos } = await appel('/api/pieces', {
+          const { plans, remarques, photos, carton } = await appel('/api/pieces', {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ itemId }),
@@ -1652,6 +1699,7 @@
           // L'ordre proposé est appliqué ; le serveur garantit que chaque
           // photo revient une fois et une seule.
           etat.bienVideo = itemId;
+          etat.carton = composerCarton(carton);
           etat.plans = plans.map(({ photo, titre }) => ({
             index: photo,
             nom: photos?.[photo] ?? `photo ${photo + 1}`,
@@ -1660,6 +1708,10 @@
             image: null,
           }));
           afficherPlans();
+          const manques = etat.carton.manques;
+          if (manques.length) {
+            avis($('avisVideo'), 'alerte', "Image d'ouverture incomplète", manques);
+          }
           if (remarques.length) avis($('avisVideo'), 'alerte', 'À vérifier', remarques);
           else avis($('avisVideo'), 'ok', 'Pièces reconnues', ['Corrigez les titres si besoin, puis générez la vidéo.']);
         } catch (erreur) {
@@ -1694,28 +1746,32 @@
       // largeur, à 5,5 % du bord gauche, le bas à 19 % du bas du cadre).
       const CADRE = { gauche: 0.055, bas: 0.193, largeur: 0.344, hauteur: 0.09, corps: 0.0444 };
 
-      function dessinerTitre(ctx, l, h, titre) {
-        if (!titre) return;
-        const corps = Math.round(l * CADRE.corps);
-        ctx.font = `300 ${corps}px "Segoe UI", system-ui, -apple-system, Helvetica, Arial, sans-serif`;
+      const SANS = '"Segoe UI", system-ui, -apple-system, Helvetica, Arial, sans-serif';
+      const SERIF = 'Georgia, "Times New Roman", serif';
 
-        // Le cadre garde sa taille d'une vidéo à l'autre, sauf si le titre
-        // déborde : « Salle de bain » ne doit pas sortir du trait.
+      // Le voile sombre qui tient le texte blanc. Sans lui, un titre posé sur
+      // un ciel clair ou un mur blanc devient illisible.
+      function dessinerVoile(ctx, l, h, depart, force) {
+        const haut = h * depart;
+        const degrade = ctx.createLinearGradient(0, haut, 0, h);
+        degrade.addColorStop(0, 'rgba(0, 0, 0, 0)');
+        degrade.addColorStop(0.45, `rgba(0, 0, 0, ${(force * 0.5).toFixed(3)})`);
+        degrade.addColorStop(1, `rgba(0, 0, 0, ${force})`);
+        ctx.fillStyle = degrade;
+        ctx.fillRect(0, haut, l, h - haut);
+      }
+
+      // Le cadre du prix et celui des titres de pièces occupent la même place,
+      // au même format : c'est la signature visuelle de l'étude.
+      function dessinerEncadre(ctx, l, h, texte, corps) {
         const marge = Math.round(l * 0.045);
         const largeur = Math.max(
           Math.round(l * CADRE.largeur),
-          Math.round(ctx.measureText(titre).width) + marge * 2
+          Math.round(ctx.measureText(texte).width) + marge * 2
         );
         const hauteur = Math.round(h * CADRE.hauteur);
         const x = Math.round(l * CADRE.gauche);
         const y = Math.round(h - h * CADRE.bas - hauteur);
-
-        // Sur une photo claire, un trait blanc sur fond blanc disparaîtrait.
-        // Une ombre portée discrète suffit à le tenir, sans assombrir la photo.
-        ctx.save();
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.55)';
-        ctx.shadowBlur = Math.round(l * 0.012);
-        ctx.shadowOffsetY = Math.round(l * 0.002);
 
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = Math.max(2, Math.round(l * 0.0019));
@@ -1724,10 +1780,54 @@
         ctx.fillStyle = '#ffffff';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(titre, x + largeur / 2, y + hauteur / 2 + corps * 0.04);
-        ctx.restore();
+        ctx.fillText(texte, x + largeur / 2, y + hauteur / 2 + corps * 0.04);
         ctx.textAlign = 'left';
         ctx.textBaseline = 'alphabetic';
+        return y;
+      }
+
+      // L'image d'ouverture : la commune, ce qu'on vend, le prix. Tout vient de
+      // la fiche du site ; une ligne sans donnée ne s'affiche pas.
+      function dessinerCarton(ctx, l, h, carton) {
+        dessinerVoile(ctx, l, h, 0.28, 0.85);
+        ctx.save();
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
+        ctx.shadowBlur = Math.round(l * 0.014);
+        ctx.shadowOffsetY = Math.round(l * 0.002);
+        ctx.fillStyle = '#ffffff';
+
+        const corpsPrix = Math.round(l * CADRE.corps);
+        ctx.font = `300 ${corpsPrix}px ${SANS}`;
+        const hautBoite = carton.prix
+          ? dessinerEncadre(ctx, l, h, carton.prix, corpsPrix)
+          : Math.round(h - h * CADRE.bas - h * CADRE.hauteur);
+
+        const gauche = Math.round(l * CADRE.gauche);
+        const corpsTitre = Math.round(l * 0.073);
+        const baseTitre = hautBoite - Math.round(h * 0.031);
+        if (carton.titre) {
+          ctx.font = `400 ${corpsTitre}px ${SERIF}`;
+          ctx.fillText(carton.titre, gauche, baseTitre);
+        }
+        if (carton.lieu) {
+          ctx.font = `300 ${Math.round(l * 0.042)}px ${SANS}`;
+          ctx.fillText(carton.lieu, gauche, baseTitre - Math.round(h * 0.095));
+        }
+        ctx.restore();
+      }
+
+      function dessinerTitre(ctx, l, h, titre) {
+        if (!titre) return;
+        dessinerVoile(ctx, l, h, 0.45, 0.78);
+        const corps = Math.round(l * CADRE.corps);
+        ctx.font = `300 ${corps}px ${SANS}`;
+
+        ctx.save();
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
+        ctx.shadowBlur = Math.round(l * 0.014);
+        ctx.shadowOffsetY = Math.round(l * 0.002);
+        dessinerEncadre(ctx, l, h, titre, corps);
+        ctx.restore();
       }
 
       // Le logo de l'étude, en haut à droite. Déposé dans web/public/logo.png,
@@ -1755,6 +1855,63 @@
           largeur, hauteur);
       }
 
+      // ── Musique ───────────────────────────────────────────────────────
+      //
+      // Le fichier reste sur le poste : il est décodé ici et mixé dans
+      // l'enregistrement, il ne part jamais vers le serveur.
+      let musique = null;
+
+      $('selecteurMusique').addEventListener('change', async (ev) => {
+        const fichier = ev.target.files?.[0];
+        musique = null;
+        if (!fichier) return ($('noteMusique').textContent = '');
+        $('noteMusique').textContent = 'Lecture du fichier…';
+        try {
+          const contexte = new AudioContext();
+          const tampon = await contexte.decodeAudioData(await fichier.arrayBuffer());
+          await contexte.close();
+          musique = { nom: fichier.name, tampon };
+          $('noteMusique').textContent =
+            `${fichier.name} · ${Math.round(tampon.duration)} s`
+            + ' — reprise en boucle si la vidéo est plus longue.';
+        } catch {
+          $('noteMusique').textContent =
+            "Fichier audio illisible. Les MP3, M4A et WAV passent ; essayez un autre format.";
+        }
+      });
+
+      /**
+       * Prépare la piste sonore : boucle si la musique est plus courte que la
+       * vidéo, fondu à l'ouverture et à la fermeture pour ne pas couper net.
+       */
+      function preparerMusique(dureeSecondes) {
+        if (!musique) return null;
+        const contexte = new AudioContext();
+        const source = contexte.createBufferSource();
+        source.buffer = musique.tampon;
+        source.loop = true;
+
+        const volume = contexte.createGain();
+        const destination = contexte.createMediaStreamDestination();
+        source.connect(volume).connect(destination);
+
+        const FONDU = 1.5;
+        const debut = contexte.currentTime;
+        volume.gain.setValueAtTime(0, debut);
+        volume.gain.linearRampToValueAtTime(0.7, debut + Math.min(FONDU, dureeSecondes / 4));
+        volume.gain.setValueAtTime(0.7, debut + Math.max(0, dureeSecondes - FONDU));
+        volume.gain.linearRampToValueAtTime(0, debut + dureeSecondes);
+
+        source.start();
+        return {
+          piste: destination.stream.getAudioTracks()[0],
+          arreter: () => {
+            try { source.stop(); } catch {}
+            contexte.close();
+          },
+        };
+      }
+
       // ── Rendu ─────────────────────────────────────────────────────────
       let rendEnCours = false;
       $('boutonRendu').addEventListener('click', rendreVideo);
@@ -1762,17 +1919,34 @@
       async function rendreVideo() {
         if (rendEnCours || !etat.plans.length) return;
 
-        const codec = codecDisponible();
+        const codec = codecDisponible(Boolean(musique));
         if (!codec) {
           return avis($('resultatVideo'), 'erreur', 'Navigateur incompatible', [
             "Ce navigateur ne sait pas enregistrer de vidéo. Utilisez Chrome ou Edge à jour.",
           ]);
         }
-        const [type, nomCodec, extension] = codec;
+        const { type, nom: nomCodec, ext: extension } = codec;
+
+        // Une vidéo publiée avec une image muette se remarque : le titre est
+        // obligatoire partout sauf sur l'image d'ouverture, qui porte le carton.
+        const sansTitre = etat.plans
+          .map((plan, rang) => ({ plan, rang }))
+          .filter(({ plan, rang }) => rang > 0 && !plan.titre);
+        if (sansTitre.length) {
+          $('resultatVideo').innerHTML = '';
+          avis($('resultatVideo'), 'erreur', 'Titres manquants',
+            sansTitre.map(({ plan, rang }) =>
+              `Image ${rang + 1} (${plan.nom}) : donnez-lui un titre ou retirez-la.`));
+          const champ = document.querySelector(`[data-titre="${sansTitre[0].rang}"]`);
+          champ?.closest('.photo')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          champ?.focus({ preventScroll: true });
+          return;
+        }
 
         rendEnCours = true;
         $('boutonRendu').disabled = true;
         $('resultatVideo').innerHTML = '';
+        let son = null;
 
         const { l, h } = FORMATS[$('formatVideo').value];
         const dureePlan = Number($('dureePhoto').value) * 1000;
@@ -1799,15 +1973,20 @@
           }
           const rognees = etat.plans.filter((p) => partVisible(p.image, l, h) < 0.5).length;
 
-          const enregistreur = new MediaRecorder(scene.captureStream(30), {
+          const total = etat.plans.length * dureePlan;
+          const flux = scene.captureStream(30);
+          son = preparerMusique(total / 1000);
+          if (son) flux.addTrack(son.piste);
+
+          const enregistreur = new MediaRecorder(flux, {
             mimeType: type,
             videoBitsPerSecond: l >= 1920 ? 12_000_000 : 8_000_000,
+            ...(son ? { audioBitsPerSecond: 128_000 } : {}),
           });
           const morceaux = [];
           enregistreur.ondataavailable = (ev) => ev.data.size && morceaux.push(ev.data);
           const termine = new Promise((r) => (enregistreur.onstop = r));
 
-          const total = etat.plans.length * dureePlan;
           enregistreur.start(1000);
           const debut = performance.now();
 
@@ -1824,12 +2003,11 @@
             if (rang > 0 && avancement < DUREE_FONDU) {
               const precedent = etat.plans[rang - 1];
               dessinerPlan(ctx, precedent, l, h, 1, zoomActif);
-              dessinerTitre(ctx, l, h, precedent.titre);
+              habiller(ctx, l, h, rang - 1);
               ctx.globalAlpha = avancement / DUREE_FONDU;
             }
-            const plan = etat.plans[rang];
-            dessinerPlan(ctx, plan, l, h, avancement, zoomActif);
-            dessinerTitre(ctx, l, h, plan.titre);
+            dessinerPlan(ctx, etat.plans[rang], l, h, avancement, zoomActif);
+            habiller(ctx, l, h, rang);
             ctx.globalAlpha = 1;
             // Le logo ne clignote pas au fondu : il est posé après, opaque.
             dessinerLogo(ctx, l);
@@ -1875,10 +2053,18 @@
           scene.hidden = true;
           avis($('resultatVideo'), 'erreur', 'La vidéo n\'a pas pu être fabriquée', [erreur.message]);
         } finally {
+          son?.arreter();
           rendEnCours = false;
           $('boutonRendu').disabled = false;
           $('noteMontage').textContent = '';
         }
+      }
+
+      // Le premier plan ouvre la vidéo : commune, nature du bien et prix.
+      // Les suivants portent le nom de la pièce.
+      function habiller(ctx, l, h, rang) {
+        if (rang === 0) return dessinerCarton(ctx, l, h, etat.carton ?? {});
+        dessinerTitre(ctx, l, h, etat.plans[rang].titre);
       }
 
       function progressionVideo(texte, part) {

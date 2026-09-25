@@ -235,8 +235,24 @@ notariale ne se rédige pas d'après une image.
 
 Les photos sont celles du bien sur le site : la photo principale d'abord, puis
 la galerie — et si la principale figure aussi dans la galerie, elle ne passe
-qu'une fois. Chaque photo s'affiche avec le nom de la pièce incrusté en bas à
-gauche, dans un cadre blanc filaire ; les plans s'enchaînent en fondu. Claude propose un
+qu'une fois.
+
+**La première image ouvre la vidéo** : commune et code postal, « Maison à
+vendre », et le prix dans un cadre. Tout est relu dans la fiche du site. Un
+champ absent fait disparaître sa ligne et vous êtes prévenu — on n'écrit pas
+« Maison à vendre » sur une fiche qui ne dit pas que c'est une maison. Le prix
+affiché est celui de la fiche, **honoraires de négociation inclus**.
+
+Les images suivantes portent le nom de la pièce, incrusté en bas à gauche dans
+un cadre blanc filaire ; les plans s'enchaînent en fondu. **Un titre est
+obligatoire sur chacune** : le rendu refuse de partir tant qu'il en manque un,
+parce qu'une image muette au milieu d'une vidéo publiée se remarque. Retirez
+la photo ou donnez-lui un titre.
+
+Vous pouvez ajouter **une musique** : choisissez un fichier de votre poste, il
+est mixé dans la vidéo avec un fondu à l'ouverture et à la fermeture, et repris
+en boucle s'il est plus court que le montage. Le fichier ne quitte jamais votre
+ordinateur. **La licence est votre affaire** : voir plus bas. Claude propose un
 titre pour chacune (« Cuisine », « Grange », « Terrain »…) et les remet dans un
 ordre de visite — on arrive par la façade, on traverse la maison, on ressort
 par les annexes et le terrain.
@@ -268,9 +284,14 @@ Quelques points à connaître :
   montages, dans la constante `CADRE` de `web/public/index.html`.
 - **Un titre n'est jamais deviné.** Si Claude hésite, la photo passe sans
   texte, et vous êtes prévenu.
-- **Pas de musique.** Ajoutez-la dans l'éditeur de Facebook au moment de
-  publier : sa bibliothèque est libre de droits, ce qu'un fichier trouvé
-  ailleurs n'est pas.
+- **La musique engage l'étude, pas l'outil.** « Libre de droits » ne veut pas
+  dire « gratuit » : c'est la licence du morceau qui dit ce que vous avez le
+  droit d'en faire, et une page professionnelle relève de l'usage commercial.
+  Aucun fichier musical n'est livré avec l'outil. Deux voies sûres :
+  la bibliothèque sonore de Facebook au moment de publier (mais elle ne
+  s'incruste pas dans le fichier), ou un morceau téléchargé sous une licence
+  qui autorise explicitement l'usage commercial. Gardez la preuve de la licence
+  avec le morceau.
 
 ---
 

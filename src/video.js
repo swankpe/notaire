@@ -6,7 +6,12 @@
 // ne fait que l'analyse — quelques dizaines de kilo-octets de photos a
 // l'aller, une liste de titres au retour.
 import { clientClaude, messageClaude } from './claude.js';
-import { choisirChampImage, choisirChampGalerie } from './schema.js';
+import {
+  choisirChampImage,
+  choisirChampGalerie,
+  choisirChampPrix,
+  choisirChampParNom,
+} from './schema.js';
 import { preparerPhoto } from './photos.js';
 
 /**
@@ -40,6 +45,40 @@ const nomDepuisUrl = (url) => {
     return 'photo';
   }
 };
+
+/**
+ * Ce qui s'affiche sur l'image d'ouverture : la commune, ce qu'on vend, le
+ * prix. Tout est relu dans la fiche du site — un carton d'annonce notariale
+ * ne s'invente pas. Un champ absent sort a `null` et la ligne ne s'affiche
+ * simplement pas.
+ *
+ * Les champs sont reconnus a leur intitule, comme le champ prix, et un slug
+ * peut etre impose dans la configuration : chaque etude nomme les siens.
+ */
+export function cartonDuBien(structure, item, config) {
+  const donnees = item?.fieldData ?? {};
+  const valeur = (champ) => {
+    if (!champ) return null;
+    const brut = donnees[champ.slug];
+    if (brut === undefined || brut === null || brut === '') return null;
+    return typeof brut === 'string' ? brut.trim() || null : brut;
+  };
+
+  const champPrix = choisirChampPrix(structure, config.champPrix);
+  const prix = valeur(champPrix);
+
+  return {
+    commune: valeur(choisirChampParNom(structure, config.champCommune,
+      ['commune', 'ville', 'localite'])),
+    codePostal: valeur(choisirChampParNom(structure, config.champCodePostal,
+      ['code postal', 'code-postal', 'codepostal', 'cp'])),
+    typeDeBien: valeur(choisirChampParNom(structure, config.champTypeDeBien,
+      ['type de bien', 'type-de-bien', 'typedebien', 'nature'])),
+    // Le prix affiche est celui de la fiche, honoraires de negociation
+    // compris : c'est le seul que l'etude publie.
+    prix: typeof prix === 'number' ? prix : null,
+  };
+}
 
 /**
  * Recupere une photo du site et la remet a la taille voulue.

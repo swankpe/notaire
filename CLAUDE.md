@@ -106,6 +106,20 @@ pas hors d'un vrai navigateur.
   une URL du navigateur ferait du serveur un relais vers n'importe quelle
   machine — y compris le réseau interne de l'hébergeur. Ne pas « simplifier »
   en passant l'URL directement.
+- **Le prix est toujours celui honoraires de négociation inclus.** Une fiche
+  notariale en porte souvent plusieurs — net vendeur, honoraires, prix FAI. Le
+  champ prix reçoit le total payé par l'acquéreur ; publier un net vendeur
+  afficherait un prix inférieur à la réalité. La règle est dans les consignes
+  de `src/extraction.js` **et** dans `config/publication.json` : les deux
+  doivent rester d'accord.
+- **Le carton d'ouverture ne devine rien non plus.** Commune, code postal et
+  type de bien sont reconnus à leur intitulé (`choisirChampParNom`) ou imposés
+  par configuration. Un champ absent fait disparaître sa ligne, et
+  l'utilisateur est prévenu — on n'écrit pas « Maison à vendre » sur une fiche
+  qui ne dit pas que c'est une maison.
+- **Un titre de pièce est obligatoire** sur toutes les images sauf la première,
+  qui porte le carton. Le rendu refuse de partir sinon : une image muette au
+  milieu d'une vidéo publiée se remarque.
 - **Le texte du post ne vient jamais des photos.** Une seule page produit le
   post et la vidéo, mais les deux sources restent séparées : le texte vient de
   la fiche du CMS, la vidéo des photos déposées. Rédiger d'après une image
@@ -117,11 +131,17 @@ pas hors d'un vrai navigateur.
 - La photo **remplit toujours le cadre**, centrée. Une version posée sur fond
   flou a été essayée puis retirée : l'étude préfère zoomer que laisser des
   bandes.
-- **`MediaRecorder` : demander H.264, accepter moins.** Facebook veut du MP4
-  H.264 ; les navigateurs sans codec propriétaire n'en ont pas et produisent du
-  VP9, voire du WebM. Le code parcourt `CODECS` par ordre de préférence et
-  **affiche le format obtenu** — sans quoi un refus de Facebook serait
-  inexplicable.
+- **`MediaRecorder` : demander H.264 **et AAC**, accepter moins.** Facebook veut
+  du MP4 H.264 ; les navigateurs sans codec propriétaire n'en ont pas et
+  produisent du VP9, voire du WebM. Et sans demander `mp4a.40.2`
+  explicitement, un navigateur met de l'**Opus** dans le MP4 — valide, mal
+  accepté. Le code parcourt `CODECS` par ordre de préférence, avec une liste
+  distincte selon qu'il y a du son, et **affiche le format obtenu** — sans quoi
+  un refus de Facebook serait inexplicable.
+- La musique reste sur le poste : elle est décodée dans le navigateur et mixée
+  dans l'enregistrement via `MediaStreamDestination`. Elle ne part jamais vers
+  le serveur, et aucun fichier musical n'est versionné — la licence est
+  l'affaire de l'étude.
 - Le rendu vidéo tourne sur `requestAnimationFrame` : dans un onglet en
   arrière-plan, le navigateur ralentit la cadence et la vidéo sort hachée. D'où
   l'aperçu visible pendant le rendu et le « ne quittez pas cet onglet ».

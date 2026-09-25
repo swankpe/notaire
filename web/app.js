@@ -25,7 +25,7 @@ import {
   lireItem,
 } from '../src/webflow.js';
 import { lireStyle, redigerPublication, lienDuBien } from '../src/publication.js';
-import { nommerLesPieces, photosDuBien, telechargerPhoto } from '../src/video.js';
+import { nommerLesPieces, photosDuBien, cartonDuBien, telechargerPhoto } from '../src/video.js';
 import { espaceDeTravail } from '../src/claude.js';
 import {
   analyserCollection,
@@ -396,14 +396,18 @@ export function creerApplication() {
     const jeton = jetonWebflow();
     const structure = await chargerStructure(config, jeton);
     const item = await lireItem(config.collectionId, itemId, jeton);
-    return { photos: photosDuBien(structure, item, config), config };
+    return {
+      photos: photosDuBien(structure, item, config),
+      carton: cartonDuBien(structure, item, config),
+      config,
+    };
   }
 
   app.post('/api/pieces', async (requete, reponse) => {
     const { itemId } = requete.body ?? {};
     if (!itemId) return reponse.status(400).json({ erreur: 'Aucun bien choisi.' });
 
-    const { photos, config } = await photosDeLItem(itemId);
+    const { photos, carton, config } = await photosDeLItem(itemId);
     if (!photos.length) {
       return reponse.status(400).json({
         erreur: "Ce bien n'a aucune photo sur le site. Publiez-les d'abord dans le CMS.",
@@ -422,7 +426,7 @@ export function creerApplication() {
       modele: config.modele,
       consignes: config.consignes,
     });
-    reponse.json({ ...resultat, photos: photos.map((p) => p.nom) });
+    reponse.json({ ...resultat, photos: photos.map((p) => p.nom), carton });
   });
 
   /**

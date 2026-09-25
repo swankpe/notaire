@@ -110,6 +110,26 @@ export function choisirChampPrix(structure, prefere) {
   );
 }
 
+/**
+ * Cherche un champ par ce que son nom evoque, comme `choisirChampPrix` : un
+ * slug configure gagne, sinon on reconnait le champ a son intitule. Rien ne
+ * correspond, rien n'est rendu — un carton de video ne s'invente pas.
+ */
+export function choisirChampParNom(structure, prefere, indices) {
+  if (prefere) {
+    const exact = structure.champs.find((c) => c.slug === prefere);
+    if (exact) return exact;
+  }
+  return (
+    structure.champs.find((c) =>
+      indices.some(
+        (i) =>
+          sansAccent(c.slug).includes(i) || sansAccent(c.displayName ?? '').includes(i)
+      )
+    ) ?? null
+  );
+}
+
 /** Signale un slug configure qui ne correspond a aucun champ de la collection. */
 export function reglagesIncoherents(structure, config) {
   const soucis = [];

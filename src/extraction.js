@@ -17,6 +17,14 @@ Règles impératives :
 - Recopie les montants, surfaces et références exactement tels qu'ils figurent
   sur la fiche. Les prix sont en euros ; pour un champ numérique, ne renvoie que
   le nombre, sans symbole ni séparateur de milliers.
+- **Le prix à retenir est celui honoraires de négociation inclus.** Une fiche
+  notariale en porte souvent plusieurs : prix net vendeur, honoraires de
+  négociation, prix hors honoraires, « FAI », « honoraires inclus », « HNI ».
+  C'est le prix total payé par l'acquéreur — le plus élevé des deux, celui qui
+  comprend les honoraires — qui va dans le champ prix. Le net vendeur ne doit
+  jamais s'y retrouver : il ferait afficher sur le site un prix inférieur à la
+  réalité. Si la fiche ne permet pas de trancher, mets null et dis-le dans
+  « _remarques » plutôt que de choisir au hasard.
 - Le champ « nom » (name) est le titre de l'annonce sur le site : court et
   explicite, du type « Maison 5 pièces - Saint-Brieuc ». S'il est déjà donné
   dans la fiche, garde le libellé de la fiche.
