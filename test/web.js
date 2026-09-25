@@ -86,7 +86,7 @@ const fichier = (nom, type) =>
 console.log('\nProtection par mot de passe');
 
 await verifier('les routes sont fermees sans session', async () => {
-  for (const chemin of ['/api/config', '/api/analyse', '/api/slug', '/api/media', '/api/creer']) {
+  for (const chemin of ['/api/config', '/api/analyse', '/api/slug', '/api/media', '/api/creer', '/api/pieces']) {
     const { statut, corps } = await appel(chemin, { method: 'POST' });
     assert.equal(statut, 401, chemin + ' devrait etre ferme');
     assert.equal(corps.connexionRequise, true);
@@ -383,6 +383,23 @@ await verifier('sans cle Claude, la redaction remonte un message clair', async (
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ itemId: premier.id }),
   });
+  assert.equal(statut, 500);
+  assert.match(corps.erreur, /ANTHROPIC_API_KEY/);
+});
+
+console.log('\nVideo diaporama');
+
+await verifier('la reconnaissance des pieces exige des photos', async () => {
+  const { statut, corps } = await appel('/api/pieces', { method: 'POST', body: new FormData() });
+  assert.equal(statut, 400);
+  assert.match(corps.erreur, /photo/i);
+});
+
+await verifier('sans cle Claude, la reconnaissance remonte un message clair', async () => {
+  const formulaire = new FormData();
+  formulaire.append('photos', fichier('photo-1.jpg', 'image/jpeg'), 'photo-1.jpg');
+  formulaire.append('photos', fichier('photo-2.jpg', 'image/jpeg'), 'photo-2.jpg');
+  const { statut, corps } = await appel('/api/pieces', { method: 'POST', body: formulaire });
   assert.equal(statut, 500);
   assert.match(corps.erreur, /ANTHROPIC_API_KEY/);
 });

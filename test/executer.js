@@ -109,6 +109,31 @@ await verifier("l'etude peut exiger des champs que Webflow laisse facultatifs", 
     false);
 });
 
+await verifier("la liste des plans video est remise d'aplomb", async () => {
+  const { ordonnerPlans } = await import('../src/video.js');
+
+  // Ordre respecte, rien a redire.
+  const net = ordonnerPlans([{ photo: 2, titre: 'Jardin' }, { photo: 0, titre: 'Cuisine' },
+                             { photo: 1, titre: '' }], 3);
+  assert.deepEqual(net.plans.map((p) => p.photo), [2, 0, 1]);
+  assert.deepEqual(net.remarques, [], 'rien a signaler quand tout est la');
+
+  // Doublon, numero hors lot, photo oubliee : la video doit rester entiere.
+  const repare = ordonnerPlans(
+    [{ photo: 1, titre: 'Cuisine' }, { photo: 1, titre: 'Cuisine' },
+     { photo: 7, titre: 'Inventee' }, { photo: -1, titre: 'Ailleurs' }],
+    3
+  );
+  assert.deepEqual(repare.plans.map((p) => p.photo), [1, 0, 2], 'chaque photo une fois');
+  assert.deepEqual(repare.plans.map((p) => p.titre), ['Cuisine', '', ''],
+    'une photo rattrapee part sans texte plutot qu avec un titre devine');
+  assert.equal(repare.remarques.length, 1);
+  assert.match(repare.remarques[0], /1, 3/, 'les numeros sont ceux de l utilisateur, a partir de 1');
+
+  // Reponse vide : on ne perd toujours aucune photo.
+  assert.deepEqual(ordonnerPlans(undefined, 2).plans.map((p) => p.photo), [0, 1]);
+});
+
 await verifier("un champ obligatoire absent de la collection est signale", () => {
   const soucis = reglagesIncoherents(structure, { champsObligatoires: ['Office', 'Notaire'] });
   assert.equal(soucis.length, 1, 'seul le champ introuvable est signale');

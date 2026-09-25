@@ -218,6 +218,41 @@ au-dessus du texte.
 
 ---
 
+## Faire une vidéo diaporama
+
+L'onglet **Vidéo** fabrique la vidéo de présentation publiée sur Facebook :
+chaque photo s'affiche avec le nom de la pièce incrusté en bas, les plans
+s'enchaînent en fondu.
+
+1. Déposez les photos du bien.
+2. **Reconnaître les pièces** : Claude les regarde, propose un titre pour
+   chacune (« Cuisine », « Grange », « Terrain »…) et les remet dans un ordre
+   de visite — on arrive par la façade, on traverse la maison, on ressort par
+   les annexes et le terrain.
+3. Corrigez les titres, glissez pour réordonner, choisissez le format.
+4. **Générer la vidéo** : elle se fabrique sous vos yeux, puis se télécharge.
+
+Quelques points à connaître :
+
+- **Tout se passe dans votre navigateur.** Une vidéo de trente secondes pèse
+  dix fois la limite d'une requête Vercel : elle ne pourrait pas être fabriquée
+  sur le serveur. Seules les photos réduites à 512 px font l'aller-retour, le
+  temps de l'analyse.
+- **Ne quittez pas l'onglet pendant le rendu.** Un navigateur ralentit les
+  onglets en arrière-plan et la vidéo sortirait hachée. Le rendu dure le temps
+  de la vidéo : trente secondes de vidéo, trente secondes d'attente.
+- **Utilisez Chrome ou Edge à jour.** Ce sont les seuls à produire du MP4
+  H.264, le format que Facebook attend. Ailleurs la vidéo sort en WebM et
+  l'outil vous le signale.
+- **Les photos en paysage ne sont pas coupées.** Dans un cadre vertical, un
+  recadrage centré n'en garderait que 42 % : la photo est posée entière sur un
+  fond flou tiré d'elle-même.
+- **Un titre n'est jamais deviné.** Si Claude hésite, la photo passe sans
+  texte, et vous êtes prévenu.
+- **Pas de musique.** Ajoutez-la dans l'éditeur de Facebook au moment de
+  publier : sa bibliothèque est libre de droits, ce qu'un fichier trouvé
+  ailleurs n'est pas.
+
 ## Ce que l'outil remplit, et ce qu'il ne remplit pas
 
 | Type de champ Webflow | Traitement |

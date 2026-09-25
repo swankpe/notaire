@@ -24,6 +24,7 @@ import {
   lireItem,
 } from '../src/webflow.js';
 import { lireStyle, redigerPublication, lienDuBien } from '../src/publication.js';
+import { nommerLesPieces } from '../src/video.js';
 import { espaceDeTravail } from '../src/claude.js';
 import {
   analyserCollection,
@@ -378,6 +379,27 @@ export function creerApplication() {
       lien: lienDuBien(style, item),
     });
   });
+
+  // ── Video diaporama : nommer les pieces ─────────────────────────────────
+  //
+  // La video se fabrique dans le navigateur ; le serveur ne voit que des
+  // photos reduites a l'aller et une liste de titres au retour.
+  app.post(
+    '/api/pieces',
+    televersement.array('photos', 40),
+    async (requete, reponse) => {
+      const config = lireConfig();
+      const images = (requete.files ?? []).map((f) => f.buffer);
+      if (!images.length) {
+        return reponse.status(400).json({ erreur: 'Aucune photo reçue.' });
+      }
+      const resultat = await nommerLesPieces(images, {
+        modele: config.modele,
+        consignes: config.consignes,
+      });
+      reponse.json(resultat);
+    }
+  );
 
   app.use((erreur, requete, reponse, suite) => {
     console.error(erreur);

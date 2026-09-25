@@ -205,6 +205,22 @@
         letter-spacing: 0.04em;
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
       }
+      .reglages-video {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 0 16px;
+        margin-top: 18px;
+      }
+      .plan .titre {
+        width: 100%;
+        border: 1px solid var(--bord);
+        border-radius: 6px;
+        padding: 5px 7px;
+        font: inherit;
+        font-size: 13px;
+      }
+      .plan .titre::placeholder { color: var(--encre-doux); font-style: italic; }
+      .apercu-video { width: 100%; max-width: 420px; border-radius: 10px; display: block; margin-top: 14px; }
       .barre-actions {
         display: flex;
         gap: 12px;
@@ -283,6 +299,7 @@
         <nav id="onglets" hidden>
           <button type="button" class="onglet actif" data-vue="publier">Publier un bien</button>
           <button type="button" class="onglet" data-vue="facebook">Post Facebook</button>
+          <button type="button" class="onglet" data-vue="video">Vidéo</button>
         </nav>
 
         <section id="configuration" hidden>
@@ -356,6 +373,68 @@
           </div>
           <div id="resultat"></div>
         </section>
+        </div>
+
+        <div id="vueVideo" hidden>
+          <section>
+            <h2>Vidéo diaporama</h2>
+            <p class="note" style="margin: -6px 0 16px">
+              Déposez les photos du bien : chaque pièce est reconnue et titrée, la vidéo
+              se fabrique dans votre navigateur. Rien n'est envoyé ailleurs que les photos
+              réduites, le temps de l'analyse.
+            </p>
+            <div class="depot" id="zoneVideo">
+              <strong>Glissez ici les photos du bien</strong>
+              <span>ou cliquez pour les choisir</span>
+            </div>
+            <input type="file" id="selecteurVideo" multiple accept="image/*" hidden />
+            <div class="barre-actions">
+              <span class="note" id="noteVideo">Aucune photo pour le moment.</span>
+              <button class="principal" id="boutonPieces" disabled>Reconnaître les pièces</button>
+            </div>
+            <div id="avisVideo"></div>
+          </section>
+
+          <section id="etapeMontage" hidden>
+            <h2>
+              Montage
+              <span class="libre">(corrigez les titres, glissez pour réordonner)</span>
+            </h2>
+            <div class="grille-photos" id="grillePlans"></div>
+
+            <div class="reglages-video">
+              <div class="champ">
+                <label for="formatVideo">Format</label>
+                <select id="formatVideo">
+                  <option value="9:16" selected>Vertical 9:16 — Reels, Stories</option>
+                  <option value="1:1">Carré 1:1 — fil d'actualité</option>
+                  <option value="16:9">Paysage 16:9 — site, YouTube</option>
+                </select>
+              </div>
+              <div class="champ">
+                <label for="dureePhoto">Durée par photo</label>
+                <select id="dureePhoto">
+                  <option value="2">2 secondes — rythmé</option>
+                  <option value="2.5" selected>2,5 secondes</option>
+                  <option value="3">3 secondes — posé</option>
+                </select>
+              </div>
+              <div class="champ">
+                <label for="effetVideo">Mouvement</label>
+                <select id="effetVideo">
+                  <option value="zoom" selected>Léger zoom</option>
+                  <option value="aucun">Aucun — image fixe</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="barre-actions">
+              <span class="note" id="noteMontage"></span>
+              <button class="principal" id="boutonRendu">Générer la vidéo</button>
+            </div>
+            <div id="resultatVideo"></div>
+            <canvas id="scene" hidden></canvas>
+          </section>
         </div>
 
         <div id="vueFacebook" hidden>
@@ -499,15 +578,17 @@
         }
       }
 
-      // ── Navigation entre les deux usages ──────────────────────────────
+      // ── Navigation entre les trois usages ─────────────────────────────
+      const VUES = { publier: 'vuePublier', facebook: 'vueFacebook', video: 'vueVideo' };
       document.querySelectorAll('.onglet').forEach((bouton) =>
         bouton.addEventListener('click', () => {
           document.querySelectorAll('.onglet').forEach((b) => b.classList.remove('actif'));
           bouton.classList.add('actif');
-          const facebook = bouton.dataset.vue === 'facebook';
-          $('vuePublier').hidden = facebook;
-          $('vueFacebook').hidden = !facebook;
-          if (facebook) chargerBiens();
+          const choisie = bouton.dataset.vue;
+          for (const [vue, identifiant] of Object.entries(VUES)) {
+            $(identifiant).hidden = vue !== choisie;
+          }
+          if (choisie === 'facebook') chargerBiens();
         })
       );
 
@@ -844,23 +925,33 @@
         });
       }
 
+      // Trois zones de dépôt dans l'outil, un seul comportement : clic,
+      // glisser-déposer, surbrillance au survol.
+      function brancherDepot(idZone, idSelecteur, action) {
+        const zone = $(idZone);
+        zone.addEventListener('click', () => $(idSelecteur).click());
+        $(idSelecteur).addEventListener('change', (ev) => {
+          action(ev.target.files);
+          // Sans cela, redéposer le même fichier ne déclenche rien.
+          ev.target.value = '';
+        });
+        ['dragenter', 'dragover'].forEach((nom) =>
+          zone.addEventListener(nom, (ev) => {
+            ev.preventDefault();
+            zone.classList.add('survol');
+          })
+        );
+        ['dragleave', 'drop'].forEach((nom) =>
+          zone.addEventListener(nom, (ev) => {
+            ev.preventDefault();
+            zone.classList.remove('survol');
+          })
+        );
+        zone.addEventListener('drop', (ev) => action(ev.dataTransfer.files));
+      }
+
       // ── Étape 1 : dépôt ───────────────────────────────────────────────
-      const zone = $('zoneDepot');
-      zone.addEventListener('click', () => $('selecteur').click());
-      $('selecteur').addEventListener('change', (e) => ajouterFichiers(e.target.files));
-      ['dragenter', 'dragover'].forEach((e) =>
-        zone.addEventListener(e, (ev) => {
-          ev.preventDefault();
-          zone.classList.add('survol');
-        })
-      );
-      ['dragleave', 'drop'].forEach((e) =>
-        zone.addEventListener(e, (ev) => {
-          ev.preventDefault();
-          zone.classList.remove('survol');
-        })
-      );
-      zone.addEventListener('drop', (ev) => ajouterFichiers(ev.dataTransfer.files));
+      brancherDepot('zoneDepot', 'selecteur', ajouterFichiers);
 
       function ajouterFichiers(liste) {
         for (const fichier of liste) {
@@ -900,6 +991,9 @@
         $('noteDepot').textContent = note;
         $('boutonAnalyser').disabled = etat.fichiers.length === 0 || bloquant;
       }
+
+      const messageIllisible = (nom) =>
+        `Photo « ${nom} » illisible : si elle vient d'un iPhone, exportez-la en JPEG.`;
 
       // ── Préparation des photos dans le navigateur ─────────────────────
       // Les photos sont réduites ici : une requête ne peut pas dépasser
@@ -949,9 +1043,7 @@
               apercu: URL.createObjectURL(vignette),
             });
           } catch {
-            soucis.push(
-              `Photo « ${fichier.name} » illisible : si elle vient d'un iPhone, exportez-la en JPEG.`
-            );
+            soucis.push(messageIllisible(fichier.name));
           }
         }
         return soucis;
@@ -1206,21 +1298,7 @@
 
       // ── Étape 3 : photos ──────────────────────────────────────────────
       const zonePhotos = $('zonePhotos');
-      zonePhotos.addEventListener('click', () => $('selecteurPhotos').click());
-      $('selecteurPhotos').addEventListener('change', (e) => completerPhotos(e.target.files));
-      ['dragenter', 'dragover'].forEach((e) =>
-        zonePhotos.addEventListener(e, (ev) => {
-          ev.preventDefault();
-          zonePhotos.classList.add('survol');
-        })
-      );
-      ['dragleave', 'drop'].forEach((e) =>
-        zonePhotos.addEventListener(e, (ev) => {
-          ev.preventDefault();
-          zonePhotos.classList.remove('survol');
-        })
-      );
-      zonePhotos.addEventListener('drop', (ev) => completerPhotos(ev.dataTransfer.files));
+      brancherDepot('zonePhotos', 'selecteurPhotos', completerPhotos);
 
       async function completerPhotos(fichiers) {
         const avant = etat.photos.length;
@@ -1431,6 +1509,371 @@
 
       $('boutonBrouillon').addEventListener('click', () => envoyer(false));
       $('boutonPublier').addEventListener('click', () => envoyer(true));
+
+      // ══ Vidéo diaporama ═══════════════════════════════════════════════
+      //
+      // Tout se passe ici, dans le navigateur : une vidéo de trente secondes
+      // pèse dix fois la limite d'une requête Vercel, elle ne pourrait même
+      // pas sortir du serveur. Seules les photos réduites font l'aller-retour,
+      // le temps que Claude nomme les pièces.
+
+      const FORMATS = {
+        '9:16': { l: 1080, h: 1920 },
+        '1:1': { l: 1080, h: 1080 },
+        '16:9': { l: 1920, h: 1080 },
+      };
+      // Par ordre de préférence : Facebook veut du H.264. Les navigateurs sans
+      // codec propriétaire retomberont plus bas dans la liste — on le dira.
+      const CODECS = [
+        ['video/mp4;codecs=avc1.42E01E', 'MP4 (H.264)', 'mp4'],
+        ['video/mp4;codecs=avc1', 'MP4 (H.264)', 'mp4'],
+        ['video/mp4', 'MP4', 'mp4'],
+        ['video/webm;codecs=vp9', 'WebM (VP9)', 'webm'],
+        ['video/webm', 'WebM', 'webm'],
+      ];
+      const codecDisponible = () =>
+        CODECS.find(([type]) => window.MediaRecorder?.isTypeSupported(type)) ?? null;
+
+      const DUREE_FONDU = 0.14; // part du plan consacrée au fondu enchaîné
+      const ZOOM_DEPART = 1.02;
+      const ZOOM_FIN = 1.1;
+
+      etat.plans = [];
+
+      async function ajouterPlans(fichiers) {
+        const soucis = [];
+        const nouveaux = [...fichiers].filter(
+          (f) => estImage(f) && !etat.plans.some((p) => p.nom === f.name && p.taille === f.size)
+        );
+        for (const fichier of nouveaux) {
+          try {
+            // Deux tailles : l'une pour le rendu, l'autre pour l'analyse.
+            // Inutile d'envoyer 2400 px à Claude pour reconnaître une cuisine.
+            const rendu = await reduire(fichier, 1600, 88);
+            const analyse = await reduire(fichier, 512, 60);
+            etat.plans.push({
+              nom: fichier.name,
+              taille: fichier.size,
+              rendu,
+              analyse,
+              apercu: URL.createObjectURL(rendu),
+              titre: '',
+              image: null,
+            });
+          } catch {
+            soucis.push(messageIllisible(fichier.name));
+          }
+        }
+        return soucis;
+      }
+
+      function afficherPlans() {
+        $('noteVideo').textContent = etat.plans.length
+          ? `${etat.plans.length} photo(s) · ${etat.plans.length * Number($('dureePhoto').value)} s de vidéo`
+          : 'Aucune photo pour le moment.';
+        $('boutonPieces').disabled = etat.plans.length === 0;
+        $('etapeMontage').hidden = etat.plans.length === 0;
+
+        $('grillePlans').innerHTML = etat.plans
+          .map(
+            (plan, rang) => `
+              <div class="photo plan" draggable="true" data-rang="${rang}">
+                <img src="${plan.apercu}" alt="${echapper(plan.nom)}" />
+                <div class="meta">
+                  <input class="titre" data-titre="${rang}" value="${echapper(plan.titre)}"
+                         placeholder="sans texte" maxlength="24" />
+                </div>
+                <div class="actions">
+                  <button type="button" data-plan="gauche" data-rang="${rang}" title="Reculer">&larr;</button>
+                  <button type="button" data-plan="droite" data-rang="${rang}" title="Avancer">&rarr;</button>
+                  <button type="button" data-plan="retirer" data-rang="${rang}" title="Retirer">&times;</button>
+                </div>
+              </div>`
+          )
+          .join('');
+      }
+
+      $('grillePlans').addEventListener('click', (ev) => {
+        const bouton = ev.target.closest('button[data-plan]');
+        if (!bouton) return;
+        const rang = Number(bouton.dataset.rang);
+        const actions = {
+          gauche: () => rang > 0 && deplacerPlan(rang, rang - 1),
+          droite: () => rang < etat.plans.length - 1 && deplacerPlan(rang, rang + 1),
+          retirer: () => etat.plans.splice(rang, 1),
+        };
+        actions[bouton.dataset.plan]();
+        afficherPlans();
+      });
+
+      // Le titre se retient à la frappe : réafficher la grille effacerait la
+      // saisie en cours.
+      $('grillePlans').addEventListener('input', (ev) => {
+        const champ = ev.target.closest('[data-titre]');
+        if (champ) etat.plans[Number(champ.dataset.titre)].titre = champ.value.trim();
+      });
+
+      function deplacerPlan(depuis, vers) {
+        const [plan] = etat.plans.splice(depuis, 1);
+        etat.plans.splice(vers, 0, plan);
+      }
+
+      let planGlisse = null;
+      $('grillePlans').addEventListener('dragstart', (ev) => {
+        const carte = ev.target.closest('.photo');
+        if (!carte) return;
+        planGlisse = Number(carte.dataset.rang);
+        carte.classList.add('glisse');
+      });
+      $('grillePlans').addEventListener('dragend', (ev) =>
+        ev.target.closest('.photo')?.classList.remove('glisse')
+      );
+      $('grillePlans').addEventListener('dragover', (ev) => ev.preventDefault());
+      $('grillePlans').addEventListener('drop', (ev) => {
+        ev.preventDefault();
+        const carte = ev.target.closest('.photo');
+        if (carte && planGlisse !== null) {
+          deplacerPlan(planGlisse, Number(carte.dataset.rang));
+          afficherPlans();
+        }
+        planGlisse = null;
+      });
+
+      brancherDepot('zoneVideo', 'selecteurVideo', async (fichiers) => {
+        $('avisVideo').innerHTML = '';
+        const soucis = await ajouterPlans(fichiers);
+        if (soucis.length) avis($('avisVideo'), 'alerte', 'Photos ignorées', soucis);
+        afficherPlans();
+      });
+
+      $('dureePhoto').addEventListener('change', afficherPlans);
+
+      // ── Reconnaissance des pièces ─────────────────────────────────────
+      $('boutonPieces').addEventListener('click', async () => {
+        const bouton = $('boutonPieces');
+        bouton.disabled = true;
+        bouton.textContent = 'Analyse en cours…';
+        $('avisVideo').innerHTML = '';
+        try {
+          const formulaire = new FormData();
+          for (const plan of etat.plans) formulaire.append('photos', plan.analyse, plan.nom);
+          const { plans, remarques } = await appel('/api/pieces', {
+            method: 'POST',
+            body: formulaire,
+          });
+
+          // L'ordre proposé est appliqué ; le serveur garantit que chaque
+          // photo revient une fois et une seule.
+          etat.plans = plans.map(({ photo, titre }) => ({ ...etat.plans[photo], titre }));
+          afficherPlans();
+          if (remarques.length) avis($('avisVideo'), 'alerte', 'À vérifier', remarques);
+          else avis($('avisVideo'), 'ok', 'Pièces reconnues', ['Corrigez les titres si besoin, puis générez la vidéo.']);
+        } catch (erreur) {
+          if (!(erreur instanceof SessionExpiree)) {
+            avis($('avisVideo'), 'erreur', "La reconnaissance a échoué", [erreur.message]);
+          }
+        } finally {
+          bouton.disabled = etat.plans.length === 0;
+          bouton.textContent = 'Reconnaître les pièces';
+        }
+      });
+
+      // ── Dessin d'un plan ──────────────────────────────────────────────
+      //
+      // Par défaut l'image remplit le cadre quitte à déborder : pas de bandes
+      // noires. Mais une photo en paysage dans un cadre vertical n'y survit
+      // pas — il n'en resterait que 42 %, la maison coupée en deux. Au-delà du
+      // seuil, on pose la photo entière sur un fond flou tiré d'elle-même.
+      const SEUIL_RECADRAGE = 0.62;
+
+      const partVisible = (image, l, h) =>
+        Math.min(l / image.width, h / image.height) / Math.max(l / image.width, h / image.height);
+
+      // Le flou se calcule une fois par photo, et en petit : l'appliquer à
+      // chaque image du rendu ferait tomber la cadence.
+      function fabriquerFond(image, l, h) {
+        const petit = document.createElement('canvas');
+        petit.width = Math.max(4, Math.round(l / 8));
+        petit.height = Math.max(4, Math.round(h / 8));
+        const ctx = petit.getContext('2d');
+        ctx.filter = 'blur(5px) brightness(0.62)';
+        const echelle = Math.max(petit.width / image.width, petit.height / image.height) * 1.2;
+        const dl = image.width * echelle;
+        const dh = image.height * echelle;
+        ctx.drawImage(image, (petit.width - dl) / 2, (petit.height - dh) / 2, dl, dh);
+        return petit;
+      }
+
+      function dessinerPlan(ctx, plan, l, h, avancement, zoomActif) {
+        const image = plan.image;
+        if (plan.fond) {
+          ctx.drawImage(plan.fond, 0, 0, l, h);
+          // La photo touche déjà deux bords : elle ne peut que grandir vers sa
+          // taille finale, jamais la dépasser.
+          const zoom = zoomActif ? 0.97 + 0.03 * avancement : 1;
+          poser(ctx, image, l, h, Math.min(l / image.width, h / image.height) * zoom);
+          return;
+        }
+        const zoom = zoomActif ? ZOOM_DEPART + (ZOOM_FIN - ZOOM_DEPART) * avancement : 1;
+        poser(ctx, image, l, h, Math.max(l / image.width, h / image.height) * zoom);
+      }
+
+      function poser(ctx, image, l, h, echelle) {
+        const dl = image.width * echelle;
+        const dh = image.height * echelle;
+        ctx.drawImage(image, (l - dl) / 2, (h - dh) / 2, dl, dh);
+      }
+
+      function dessinerTitre(ctx, l, h, titre) {
+        if (!titre) return;
+        const corps = Math.round(l * 0.072);
+        const gauche = Math.round(l * 0.075);
+        // Le dixième inférieur du cadre est recouvert par l'interface de
+        // Facebook dans les Reels : le texte s'arrête au-dessus.
+        const base = h - Math.round(h * 0.1);
+        const depart = Math.max(0, base - corps * 4.2);
+
+        const degrade = ctx.createLinearGradient(0, depart, 0, h);
+        degrade.addColorStop(0, 'rgba(0,0,0,0)');
+        degrade.addColorStop(0.5, 'rgba(0,0,0,0.38)');
+        degrade.addColorStop(1, 'rgba(0,0,0,0.86)');
+        ctx.fillStyle = degrade;
+        ctx.fillRect(0, depart, l, h - depart);
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(gauche, base - corps * 1.5, Math.round(l * 0.085), Math.max(3, Math.round(l * 0.005)));
+        ctx.font = `600 ${corps}px "Segoe UI", system-ui, -apple-system, Helvetica, Arial, sans-serif`;
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillText(titre, gauche, base);
+      }
+
+      // ── Rendu ─────────────────────────────────────────────────────────
+      let rendEnCours = false;
+      $('boutonRendu').addEventListener('click', rendreVideo);
+
+      async function rendreVideo() {
+        if (rendEnCours || !etat.plans.length) return;
+
+        const codec = codecDisponible();
+        if (!codec) {
+          return avis($('resultatVideo'), 'erreur', 'Navigateur incompatible', [
+            "Ce navigateur ne sait pas enregistrer de vidéo. Utilisez Chrome ou Edge à jour.",
+          ]);
+        }
+        const [type, nomCodec, extension] = codec;
+
+        rendEnCours = true;
+        $('boutonRendu').disabled = true;
+        $('resultatVideo').innerHTML = '';
+
+        const { l, h } = FORMATS[$('formatVideo').value];
+        const dureePlan = Number($('dureePhoto').value) * 1000;
+        const zoomActif = $('effetVideo').value === 'zoom';
+        const scene = $('scene');
+        scene.width = l;
+        scene.height = h;
+        scene.hidden = false;
+        scene.className = 'apercu-video';
+        const ctx = scene.getContext('2d');
+
+        try {
+          // Les images sont décodées une fois pour toutes : décoder pendant
+          // l'enregistrement ferait sauter des images.
+          progressionVideo('Préparation des images…', 0);
+          for (const plan of etat.plans) {
+            if (!plan.image) plan.image = await createImageBitmap(plan.rendu);
+            // Le fond dépend du format choisi : il se refait à chaque rendu.
+            plan.fond =
+              partVisible(plan.image, l, h) < SEUIL_RECADRAGE
+                ? fabriquerFond(plan.image, l, h)
+                : null;
+          }
+          const recadrees = etat.plans.filter((p) => p.fond).length;
+
+          const enregistreur = new MediaRecorder(scene.captureStream(30), {
+            mimeType: type,
+            videoBitsPerSecond: l >= 1920 ? 12_000_000 : 8_000_000,
+          });
+          const morceaux = [];
+          enregistreur.ondataavailable = (ev) => ev.data.size && morceaux.push(ev.data);
+          const termine = new Promise((r) => (enregistreur.onstop = r));
+
+          const total = etat.plans.length * dureePlan;
+          enregistreur.start(1000);
+          const debut = performance.now();
+
+          for (;;) {
+            const t = performance.now() - debut;
+            if (t >= total) break;
+            const rang = Math.min(etat.plans.length - 1, Math.floor(t / dureePlan));
+            const avancement = (t - rang * dureePlan) / dureePlan;
+
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, l, h);
+
+            // Fondu enchaîné : le plan précédent finit son zoom dessous.
+            if (rang > 0 && avancement < DUREE_FONDU) {
+              const precedent = etat.plans[rang - 1];
+              dessinerPlan(ctx, precedent, l, h, 1, zoomActif);
+              dessinerTitre(ctx, l, h, precedent.titre);
+              ctx.globalAlpha = avancement / DUREE_FONDU;
+            }
+            const plan = etat.plans[rang];
+            dessinerPlan(ctx, plan, l, h, avancement, zoomActif);
+            dessinerTitre(ctx, l, h, plan.titre);
+            ctx.globalAlpha = 1;
+
+            progressionVideo(
+              `Image ${rang + 1} sur ${etat.plans.length} — ne quittez pas cet onglet`,
+              t / total
+            );
+            await new Promise((r) => requestAnimationFrame(r));
+          }
+
+          enregistreur.stop();
+          await termine;
+
+          const fichier = new Blob(morceaux, { type });
+          const adresse = URL.createObjectURL(fichier);
+          const nom = `video-${new Date().toISOString().slice(0, 10)}.${extension}`;
+          $('resultatVideo').innerHTML = `
+            <video class="apercu-video" src="${adresse}" controls playsinline></video>
+            <div class="barre-actions">
+              <span class="note">${echapper(nomCodec)} · ${poidsLisible(fichier.size)}
+                · ${Math.round(total / 1000)} s · ${l}×${h}</span>
+              <a class="principal" style="text-decoration:none" href="${adresse}" download="${nom}">
+                Télécharger la vidéo</a>
+            </div>`;
+          scene.hidden = true;
+
+          if (recadrees) {
+            avis($('resultatVideo'), 'ok', 'Photos en paysage', [
+              `${recadrees} photo(s) ne tiennent pas dans ce format sans être coupées : `
+              + 'elles sont posées en entier sur un fond flou. Le format 16:9 les montrerait '
+              + 'en plein cadre, mais il passe moins bien sur Facebook.',
+            ]);
+          }
+          if (!type.startsWith('video/mp4')) {
+            avis($('resultatVideo'), 'alerte', 'Format WebM', [
+              "Ce navigateur ne sait pas produire de MP4 : la vidéo est en WebM. "
+              + 'Facebook accepte souvent ce format, mais si le téléversement est refusé, '
+              + 'refaites la vidéo depuis Chrome ou Edge à jour.',
+            ]);
+          }
+        } catch (erreur) {
+          scene.hidden = true;
+          avis($('resultatVideo'), 'erreur', 'La vidéo n\'a pas pu être fabriquée', [erreur.message]);
+        } finally {
+          rendEnCours = false;
+          $('boutonRendu').disabled = false;
+        }
+      }
+
+      function progressionVideo(texte, part) {
+        $('noteMontage').innerHTML =
+          `<div class="jauge"><div style="width:${Math.round(part * 100)}%"></div></div>`
+          + `<span>${echapper(texte)}</span>`;
+      }
     </script>
   </body>
 </html>

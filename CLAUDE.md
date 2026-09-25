@@ -24,6 +24,7 @@ structure actuelle.
 | Contrainte | Conséquence dans le code |
 | --- | --- |
 | 4,5 Mo par requête | Photos réduites côté navigateur (canvas), envoyées **une par une** via `/api/media`. La fiche PDF part seule ; au-delà de 3,4 Mo ses pages sont converties en images (pdf.js dans le navigateur) et envoyées en `pages[]`. |
+| 4,5 Mo par requête (bis) | La **vidéo diaporama se fabrique dans le navigateur** (canvas + `MediaRecorder`) : un fichier vidéo pèse dix fois la limite, il ne pourrait pas sortir du serveur. Le serveur ne voit que les photos réduites à 512 px, le temps de nommer les pièces. |
 | Pas de mémoire entre requêtes | Le navigateur garde les fichiers ; chaque route est autonome. Ne jamais réintroduire un cache de session côté serveur. |
 | Disque en lecture seule | Rien ne s'écrit à l'exécution. Les réglages non secrets vivent dans `config/webflow.json`, **versionné**, donc déployé avec le code ; seuls les secrets sont des variables d'environnement. L'écran de configuration ne peut rien enregistrer : il affiche les valeurs à reporter. |
 | Détection du point d'entrée | `server.js` doit rester **à la racine** : c'est ainsi que Vercel capture le serveur. |
@@ -41,6 +42,7 @@ structure actuelle.
 | `src/extraction.js` | lecture de la fiche PDF via l'API Claude (document base64) |
 | `src/publication.js` | rédaction du post Facebook ; le style vient de `config/publication.json`, versionné |
 | `src/photos.js` | sharp : redressement, redimensionnement, JPEG, EXIF supprimés |
+| `src/video.js` | nomme les pièces et propose un ordre de visite ; `ordonnerPlans` remet la réponse d'aplomb |
 | `src/pipeline.js` | les quatre étapes, indépendantes ; `publierBien` les chaîne pour la CLI |
 | `src/cli.js` | `setup`, `champs`, `import`, `vercel` |
 
@@ -95,6 +97,18 @@ pas hors d'un vrai navigateur.
 - Le style des posts Facebook tient dans les **exemples** de
   `config/publication.json`, pas dans les consignes. Pour corriger un ton qui
   dérive, ajouter un bon post plutôt que réécrire les règles.
+- **Vidéo : jamais faire confiance à la liste de plans rendue.** Un modèle peut
+  oublier une photo ou en citer deux fois. `ordonnerPlans` garantit que chaque
+  photo revient une fois et une seule ; une photo rattrapée part **sans texte**,
+  jamais avec un titre deviné, et l'utilisateur est prévenu.
+- **`MediaRecorder` : demander H.264, accepter moins.** Facebook veut du MP4
+  H.264 ; les navigateurs sans codec propriétaire n'en ont pas et produisent du
+  VP9, voire du WebM. Le code parcourt `CODECS` par ordre de préférence et
+  **affiche le format obtenu** — sans quoi un refus de Facebook serait
+  inexplicable.
+- Le rendu vidéo tourne sur `requestAnimationFrame` : dans un onglet en
+  arrière-plan, le navigateur ralentit la cadence et la vidéo sort hachée. D'où
+  l'aperçu visible pendant le rendu et le « ne quittez pas cet onglet ».
 - `exigerSession` échoue **fermé** (503) quand `surVercel && !protectionActive()`.
   Ne pas assouplir : sur Vercel une variable ajoutée après coup n'est prise en
   compte qu'au déploiement suivant, et le fail-open serait silencieux.
